@@ -5,6 +5,7 @@ ipython_checkpoints
 .DS_Store
 node_modules
 /dist
+nltk_data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

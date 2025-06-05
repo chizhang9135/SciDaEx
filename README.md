@@ -10,9 +10,6 @@
 
 > An open-source system for extracting and structuring data from scientific literature using Large Language Models (LLMs). It integrates a computational backend with an interactive user interface to facilitate efficient data extraction, structuring, and refinement for evidence synthesis in scientific research.
 
-> **Note:** This repository contains two main branches:
-> - `main`: The latest version optimized for customization and extension
-> - `scidasynth`: The original version as described in our research paper
 
 ## 📞 Contact
 **Xingbo Wang** - [Website](https://andy-xingbowang.com/) | [Email](mailto:wangxbzb@gmail.com)
