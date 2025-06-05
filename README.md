@@ -70,7 +70,14 @@ npm install
     ``` 
 
 ## 💻 Usage
+### install nltk
+run following command
+```bash
+mkdir nltk_data
+import nltk
+nltk.download('punkt', download_dir='./nltk_data')
 
+```
 ### Preprocess Documents
 1. Place your PDF documents in the `backend/app/dataService/data` directory.
 2. Run the preprocessing script:
