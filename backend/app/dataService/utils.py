@@ -85,7 +85,7 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 
 # Local imports
 try:
@@ -107,13 +107,18 @@ except ImportError:
         table_structure_prompt_templatev2
     )
     
-def summarize_text_openai(texts: List[str], openai_key: str, model_name: str = "gpt-3.5-turbo-1106", max_workers: int = 5) -> list[dict[str, str]]:
+def summarize_texts(texts: List[str], azure_openai_key: str, model_name: str = "gpt-3.5-turbo-1106", max_workers: int = 5) -> list[dict[str, str]]:
     prompt_text = """You are an assistant tasked with summarizing tables and text. \
     Give a concise summary of the table or text. Table or text chunk: {element} """
     prompt = ChatPromptTemplate.from_template(prompt_text)
-    model = ChatOpenAI(temperature=0, 
-                       model=model_name, 
-                       api_key=openai_key)
+    model = AzureChatOpenAI(
+        temperature=0,
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+        model=model_name,
+    )
     summarize_chain = {"element": lambda x: x} | prompt | model | StrOutputParser()
     
     results = []
@@ -143,11 +148,11 @@ def summarize_single_text(text: str, summarize_chain) -> tuple[str, str]:
         print(error_message)
         return "Summary unavailable due to processing error.", error_message
 
-def build_local_document_vector_store(texts: List[str], openai_key: str) -> tuple[FAISS, InMemoryStore]:
+def build_local_document_vector_store(texts: List[str], azure_openai_key: str) -> tuple[FAISS, InMemoryStore]:
     id_key = "doc_id"
     
     # Summarize the texts
-    summary_results = summarize_text_openai(texts, openai_key)
+    summary_results = summarize_texts(texts, azure_openai_key)
     
     # Create documents, filtering out failed summaries
     doc_ids = []
@@ -162,7 +167,13 @@ def build_local_document_vector_store(texts: List[str], openai_key: str) -> tupl
             valid_texts.append(result["original"])
     
     # Create vectorstore
-    vectorstore = FAISS.from_documents(summary_texts, OpenAIEmbeddings(openai_api_key=openai_key))
+    embedding_model = AzureOpenAIEmbeddings(
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_embedding_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+    )
+    vectorstore = FAISS.from_documents(summary_texts, embedding_model)
     
     # Create docstore
     docstore = InMemoryStore()
@@ -170,11 +181,11 @@ def build_local_document_vector_store(texts: List[str], openai_key: str) -> tupl
     
     return vectorstore, docstore
 
-def save_local_document_vector_store(texts: list[str], output_vectorstore_path: str, output_docstore_path: str, openai_key: str):   
+def save_local_document_vector_store(texts: list[str], output_vectorstore_path: str, output_docstore_path: str, azure_openai_key: str):
     id_key = "doc_id"
     
     # Summarize the texts
-    summary_results = summarize_text_openai(texts, openai_key)
+    summary_results = summarize_texts(texts, azure_openai_key)
     
     # Create documents, filtering out failed summaries
     doc_ids = []
@@ -189,7 +200,13 @@ def save_local_document_vector_store(texts: list[str], output_vectorstore_path: 
             valid_texts.append(result["original"])
 
     # Create vectorstore
-    vectorstore = FAISS.from_documents(summary_texts, OpenAIEmbeddings(openai_api_key=openai_key))
+    embedding_model = AzureOpenAIEmbeddings(
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_embedding_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+    )
+    vectorstore = FAISS.from_documents(summary_texts, embedding_model)
     
     # Create docstore
     docstore = InMemoryStore()
@@ -247,14 +264,15 @@ def build_rag_chain(retriever):
     Question: {question}
     """
     prompt = ChatPromptTemplate.from_template(template)
-    model = ChatOpenAI(temperature=0, 
-                    #    model="gpt-4-1106-preview", 
-                       model="gpt-4o",
-                       openai_api_key = GV.openai_key,
-                       model_kwargs={
-                           # "seed": 42,
-                           "response_format": { "type": "json_object" }
-                       })
+    model = AzureChatOpenAI(
+        temperature=0,
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+        model="gpt-4o",
+        model_kwargs={"response_format": {"type": "json_object"}},
+    )
     retreival_chain = (
         {
             "question": itemgetter("question"),
@@ -723,12 +741,14 @@ def describe_figure(image_path, caption, model, api_key):
     }
 
     payload = {
-    "model": model,
-    "messages": figure_describe_prompt_template(caption, base64_image),
-    "max_tokens": 300
+        "model": model,
+        "messages": figure_describe_prompt_template(caption, base64_image),
+        "max_tokens": 300,
     }
 
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    url = f"{GV.azure_openai_endpoint}/openai/deployments/{GV.azure_openai_deployment}/chat/completions?api-version={GV.azure_openai_version}"
+
+    response = requests.post(url, headers=headers, json=payload)
 
     return response.json()["choices"][0]["message"]["content"]
 
@@ -740,7 +760,7 @@ def process_figures(pdf_fold, figure_fold, model, openai_api_key):
         pdf_fold (str): Path to the folder containing PDF files.
         figure_fold (str): Path to the folder where figure JSON files will be saved.
         model (str): Name of the LLM model to use for figure description, such as "gpt-4o" or "gpt-4-turbo"
-        openai_api_key (str): OpenAI API key for LLM access.
+        openai_api_key (str): Azure OpenAI API key for LLM access.
     """
     print("figure extraction")
     for pdf_file in tqdm(os.listdir(pdf_fold)):
@@ -780,7 +800,7 @@ def process_single_pdf_figure(pdf_path, figure_fold, model, openai_api_key):
         pdf_path (str): Path to the PDF file.
         figure_fold (str): Path to the folder where the figure JSON file will be saved.
         model (str): Name of the LLM model to use for figure description, such as "gpt-4o", "gpt-4-turbo"
-        openai_api_key (str): OpenAI API key for LLM access.
+        openai_api_key (str): Azure OpenAI API key for LLM access.
     """
     print("Processing single PDF for figure extraction")
     if os.path.basename(pdf_path)[-3:] != 'pdf':
@@ -859,14 +879,24 @@ def normalize_table_name(figure_name):
 
 def extract_pdf_table_llm_new(pdf_path, model_name, openai_api_key):
     # table structure model
-    structure_model = ChatOpenAI(model=model_name, 
-                                 temperature=0, 
-                                 api_key = openai_api_key, 
-                                 model_kwargs={"response_format": { "type": "json_object" }})
+    structure_model = AzureChatOpenAI(
+        model=model_name,
+        temperature=0,
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+        model_kwargs={"response_format": {"type": "json_object"}},
+    )
     # general model
-    model = ChatOpenAI(model=model_name, 
-                       temperature=0, 
-                       api_key = openai_api_key)
+    model = AzureChatOpenAI(
+        model=model_name,
+        temperature=0,
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+    )
     table_extract_prompt = PromptTemplate(
         template = table_extract_prompt_template,
         input_variables=["page_content"]
@@ -925,9 +955,14 @@ def extract_pdf_table_llm_new(pdf_path, model_name, openai_api_key):
 def extract_pdf_table_llm(pdf_path, model, openai_api_key):
     # function: extract odf tables through llm
     os.environ["OPENAI_API_KEY"] = openai_api_key
-    model = ChatOpenAI(model="gpt-4-1106-preview", 
-                       temperature=0, 
-                       api_key = openai_api_key)
+    model = AzureChatOpenAI(
+        model="gpt-4-1106-preview",
+        temperature=0,
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+    )
 
     table_extract_prompt = PromptTemplate(
         template = table_extract_prompt_template,
@@ -1059,7 +1094,7 @@ def process_tables(pdf_folder, table_folder, model, openai_api_key):
         pdf_folder (str): Path to the folder containing PDF files.
         table_folder (str): Path to the folder where table JSON files will be saved.
         model (str): Name of the LLM model to use for table extraction.
-        openai_api_key (str): OpenAI API key for LLM access.
+        openai_api_key (str): Azure OpenAI API key for LLM access.
     """
     for pidx, pdf_file in tqdm(enumerate(os.listdir(pdf_folder)), total=len(os.listdir(pdf_folder))):
         if pdf_file[-3:] != 'pdf':
@@ -1086,7 +1121,7 @@ def process_single_pdf_table(pdf_path, table_folder, model, openai_api_key):
         pdf_path (str): Path to the PDF file.
         table_folder (str): Path to the folder where the table JSON file will be saved.
         model (str): Name of the LLM model to use for table extraction, such as "gpt-4o", "gpt-4-turbo"
-        openai_api_key (str): OpenAI API key for LLM access.
+        openai_api_key (str): Azure OpenAI API key for LLM access.
     """
     if os.path.basename(pdf_path)[-3:] != 'pdf':
         raise Exception("Invalid PDF file")
@@ -1109,9 +1144,14 @@ def extract_pdf_meta_information(pdf_path, model, openai_api_key):
     # # ---use pdfminer---
     # print(pdf_path)
     os.environ["OPENAI_API_KEY"] = openai_api_key
-    model = ChatOpenAI(model_name="gpt-3.5-turbo-1106", 
-                       temperature=0, 
-                       api_key = openai_api_key)
+    model = AzureChatOpenAI(
+        model_name="gpt-3.5-turbo-1106",
+        temperature=0,
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+    )
     paper_content = read_pdf(pdf_path, 2)
     # print("Start metainformation extraction")
     # print(paper_content)
@@ -1162,7 +1202,7 @@ def process_meta_information(pdf_folder, meta_folder, model, openai_api_key):
         pdf_folder (str): Path to the folder containing PDF files.
         meta_folder (str): Path to the folder where meta information JSON files will be saved.
         model (str): Name of the LLM model to use for meta information extraction.
-        openai_api_key (str): OpenAI API key for LLM access.
+        openai_api_key (str): Azure OpenAI API key for LLM access.
     """
     for pidx, pdf_file in tqdm(enumerate(os.listdir(pdf_folder)), total=len(os.listdir(pdf_folder))):
         if pdf_file[-3:] != 'pdf':

@@ -60,14 +60,20 @@ npm install
    - Create a `config.yml` file in the `backend/app/dataService` directory
    - Update the `config.yml` file with the required configurations:
      - Get Adobe service API credentials [here](https://developer.adobe.com/document-services/docs/overview/pdf-services-api/)
-     - Get OpenAI API key [here](https://platform.openai.com/api-keys)
+    - Provide Azure OpenAI credentials
     ```yaml
-    openai_key: your_openai_api_key
-
+    azure_openai:
+      api_key: your_azure_openai_key
+      api_base: https://your-resource.openai.azure.com
+      api_version: 2024-05-01-preview
+      deployment_name: gpt-4o-deployment
+      embedding_deployment_name: text-embedding-3-small-deployment  # Add this if using vector search
+    
     adobe_credentials:
-       client_id: your_adobe_client_id
-       client_secret: your_adobe_client_secret
-    ``` 
+      client_id: your_adobe_client_id
+      client_secret: your_adobe_client_secret
+
+    ```
 
 ## 💻 Usage
 ### install nltk

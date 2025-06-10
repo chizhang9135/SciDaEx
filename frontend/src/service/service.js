@@ -49,31 +49,28 @@ function run_qa(q, fileLists, callback) {
 }
 
 // extract tables from pdf
-function extract_table_from_pdf(fileLists, openai_key, callback) {
+function extract_table_from_pdf(fileLists, callback) {
     let url = `${dataServerUrl}/extract_table_from_pdf`
     const params = {
-        "filenames": fileLists,
-        "openai_api_key": openai_key
+        "filenames": fileLists
     }
     request(url, params, POST_REQUEST, callback)
 }
 
 // extract meta from pdf
-function extract_meta_from_pdf(fileLists, openai_key, callback) {
+function extract_meta_from_pdf(fileLists, callback) {
     let url = `${dataServerUrl}/extract_meta_from_pdf`
     const params = {
-        "filenames": fileLists,
-        "openai_api_key": openai_key
+        "filenames": fileLists
     }
     request(url, params, POST_REQUEST, callback)
 }
 
 // extract figure from pdf
-function extract_figure_from_pdf(fileLists, openai_key, callback) {
+function extract_figure_from_pdf(fileLists, callback) {
     let url = `${dataServerUrl}/extract_figure_from_pdf`
     const params = {
-        "filenames": fileLists,
-        "openai_api_key": openai_key
+        "filenames": fileLists
     }
     request(url, params, POST_REQUEST, callback)
 }

@@ -27,7 +27,6 @@ Main Components:
 import os
 import sys
 import json
-import openai
 import numpy as np
 import pandas as pd
 import pickle
@@ -37,7 +36,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.output_parsers import StrOutputParser
 # from langchain_community.chat_models import ChatOpenAI
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 # from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
@@ -59,7 +58,6 @@ class DataService(object):
     def __init__(self):
         self.name = "dataService"
         self.GV = GV
-        self.openai_key = GV.openai_key
         self.utils = utils
 
         self.paper_folder = GV.data_dir
@@ -70,7 +68,7 @@ class DataService(object):
         print("loading vectorstores...")
         self._load_vectorstores_(load_flag=self.load_flag)
         print("finished loading vectorstores")
-        os.environ["OPENAI_API_KEY"] = GV.openai_key
+        # Environment variables are configured in globalVariable
 
     def _load_vectorstores_(self, load_flag=True):
         """
@@ -92,17 +90,25 @@ class DataService(object):
             if pdf_file.endswith(".pdf"):
                 vectorstore_path = os.path.join(data_folder, "vectorstore", pdf_file.split(".")[0], "vector_index")
                 db_path = os.path.join(data_folder, "vectorstore", pdf_file.split(".")[0], pdf_file.split(".")[0] + ".pickle")
-                if load_flag: 
-                    vectorstore = FAISS.load_local(vectorstore_path, 
-                                                   embeddings=OpenAIEmbeddings(openai_api_key = GV.openai_key),
-                                                   allow_dangerous_deserialization=True)
+                if load_flag:
+                    embedding_model = AzureOpenAIEmbeddings(
+                        azure_endpoint=GV.azure_openai_endpoint,
+                        azure_deployment=GV.azure_embedding_deployment,
+                        api_version=GV.azure_openai_version,
+                        api_key=GV.azure_openai_key,
+                    )
+                    vectorstore = FAISS.load_local(
+                        vectorstore_path,
+                        embeddings=embedding_model,
+                        allow_dangerous_deserialization=True,
+                    )
                     docstore = pickle.load(open(db_path, "rb"))
                 else:
                     # if no precomputed vectorstores, process pdfs then
                     pdf_path = os.path.join(data_folder, pdf_file)
                     table_path = os.path.join(table_folder, pdf_file.split(".")[0] + ".json")
                     all_text = preprocess.process_one_pdf_papermage(pdf_path, table_path)
-                    vectorstore, docstore = utils.build_local_document_vector_store(all_text, GV.openai_key)
+                    vectorstore, docstore = utils.build_local_document_vector_store(all_text, GV.azure_openai_key)
                 retriever = utils.build_multivector_retriever(vectorstore, docstore, id_key=id_key)
                 retrievers[pdf_file] = retriever
         self.retrievers = retrievers
@@ -184,14 +190,14 @@ class DataService(object):
         Ensure your structure capture all relevant information from the question, while also being flexible enough to accommodate various possible answers.
         """
 
-        model = ChatOpenAI(temperature=0, 
-                            model="gpt-4o-mini",
-                            api_key = GV.openai_key,
-                            model_kwargs={
-                                # "seed": 42,
-                                "response_format": { "type": "json_object" }
-                                }
-                            )
+        model = AzureChatOpenAI(
+            temperature=0,
+            azure_endpoint=GV.azure_openai_endpoint,
+            azure_deployment=GV.azure_openai_deployment,
+            api_version=GV.azure_openai_version,
+            api_key=GV.azure_openai_key,
+            model_kwargs={"response_format": {"type": "json_object"}},
+        )
         ans_format = json.dumps(json.loads(model.invoke(answer_structure_prompt).content))
         # print("ans_format: \n", ans_format)
         #######################
@@ -236,9 +242,13 @@ class DataService(object):
         {answer}
         """
         summary_prompt = ChatPromptTemplate.from_template(summary_template)
-        summary_model = ChatOpenAI(temperature=0, 
-                                   model="gpt-3.5-turbo-1106", 
-                                   api_key = GV.openai_key)
+        summary_model = AzureChatOpenAI(
+            temperature=0,
+            azure_endpoint=GV.azure_openai_endpoint,
+            azure_deployment=GV.azure_openai_deployment,
+            api_version=GV.azure_openai_version,
+            api_key=GV.azure_openai_key,
+        )
         rag_summary_chain = summary_prompt | summary_model | StrOutputParser()
         rag_sum_text = utils.cut_string_to_token_length(str([str(r["answer"]) for r in list(results.values())]))
         

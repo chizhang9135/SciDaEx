@@ -4,7 +4,7 @@ from langchain.chains.combine_documents import collapse_docs, split_list_of_docs
 from langchain_core.prompts import PromptTemplate, format_document
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 # from langchain_community.chat_models import ChatOpenAI
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 
@@ -13,7 +13,7 @@ try:
 except:
     import app.dataService.globalVariable as GV
 
-def summarize_docs(docs, openai_key = GV.openai_key):
+def summarize_docs(docs, openai_key=GV.azure_openai_key):
     """
     Summarize a list of documents using a map-reduce approach with language models.
 
@@ -22,7 +22,7 @@ def summarize_docs(docs, openai_key = GV.openai_key):
 
     Args:
         docs (List[Document]): A list of Document objects to be summarized.
-        openai_key (str, optional): OpenAI API key for authentication. Defaults to GV.openai_key.
+        openai_key (str, optional): Azure OpenAI API key for authentication. Defaults to GV.azure_openai_key.
 
     Returns:
         str: A coherent summary of all input documents.
@@ -33,10 +33,15 @@ def summarize_docs(docs, openai_key = GV.openai_key):
     3. Define a chain to collapse multiple summaries (reduce step).
     4. Apply the map-reduce process to generate the final summary.
     """
-    llm = ChatOpenAI(model="gpt-3.5-turbo-0125", 
-                     temperature=0, 
-                     api_key = openai_key, 
-                     model_kwargs={"seed": 42})
+    llm = AzureChatOpenAI(
+        model="gpt-3.5-turbo-0125",
+        temperature=0,
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+        model_kwargs={"seed": 42},
+    )
 
     # Define prompt and method for converting Document to string
     document_prompt = PromptTemplate.from_template("{page_content}")
