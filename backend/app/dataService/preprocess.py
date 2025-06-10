@@ -235,7 +235,7 @@ def process_one_pdf(pdf_path, table_path, figure_path, flag='all'):
     print("*"*20)
     return all_text
 
-def preprocess_folder(pdf_dir, figure_dir, table_dir, meta_dir, table_model, figure_model, meta_model, mode, openai_key, vectorstore_dir, flag):
+def preprocess_folder(pdf_dir, figure_dir, table_dir, meta_dir, table_model, figure_model, meta_model, mode, azure_openai_key, vectorstore_dir, flag):
     # Create directories if they don't exist
     for directory in [figure_dir, table_dir, meta_dir, vectorstore_dir]:
         os.makedirs(directory, exist_ok=True)
@@ -254,13 +254,13 @@ def preprocess_folder(pdf_dir, figure_dir, table_dir, meta_dir, table_model, fig
 
     if flag in ["all", "figure"]:
         # process figures
-        utils.process_figures(data_folder, figure_folder, figure_model, openai_key)
+        utils.process_figures(data_folder, figure_folder, figure_model, azure_openai_key)
 
     if flag in ["all", "table"]:
         # process tables
-        utils.process_tables(data_folder, table_folder, table_model, openai_key)
+        utils.process_tables(data_folder, table_folder, table_model, azure_openai_key)
     
-    utils.process_meta_information(data_folder, meta_folder, meta_model, openai_key)
+    utils.process_meta_information(data_folder, meta_folder, meta_model, azure_openai_key)
 
     # start to generate vector stores
     for filename in tqdm(os.listdir(data_folder)):
@@ -275,7 +275,7 @@ def preprocess_folder(pdf_dir, figure_dir, table_dir, meta_dir, table_model, fig
             if not os.path.exists(vectorstore_path) or not os.path.exists(db_path):
                 all_text = process_one_pdf(pdf_path, table_path, figure_path, flag)
                 print(f"Processing {filename}")
-                utils.save_local_document_vector_store(all_text, vectorstore_path, db_path, openai_key)
+                utils.save_local_document_vector_store(all_text, vectorstore_path, db_path, azure_openai_key)
         except Exception as e:
             print(f"Failed to process {filename}")
             print(e)
@@ -283,7 +283,7 @@ def preprocess_folder(pdf_dir, figure_dir, table_dir, meta_dir, table_model, fig
     print(f"Failed files: {failed_files}")
     print("Preprocessing done.")
 
-def preprocess_single_pdf(pdf_path, figure_dir, table_dir, meta_dir, table_model, figure_model, meta_model, mode, openai_key, vectorstore_dir, flag):
+def preprocess_single_pdf(pdf_path, figure_dir, table_dir, meta_dir, table_model, figure_model, meta_model, mode, azure_openai_key, vectorstore_dir, flag):
     # Create directories if they don't exist
     for directory in [figure_dir, table_dir, meta_dir, vectorstore_dir]:
         os.makedirs(directory, exist_ok=True)
@@ -309,14 +309,14 @@ def preprocess_single_pdf(pdf_path, figure_dir, table_dir, meta_dir, table_model
     
     if flag in ["all", "figure"]:
         # process figures
-        utils.process_single_pdf_figure(pdf_path, figure_folder, figure_model, openai_key)
+        utils.process_single_pdf_figure(pdf_path, figure_folder, figure_model, azure_openai_key)
 
     if flag in ["all", "table"]:
         # process tables
-        utils.process_single_pdf_table(pdf_path, table_folder, table_model, openai_key)
+        utils.process_single_pdf_table(pdf_path, table_folder, table_model, azure_openai_key)
     
     # process meta information
-    utils.process_single_pdf_meta_information(pdf_path, meta_folder, meta_model, openai_key)
+    utils.process_single_pdf_meta_information(pdf_path, meta_folder, meta_model, azure_openai_key)
 
     # start to generate vector stores
     try:
@@ -327,7 +327,7 @@ def preprocess_single_pdf(pdf_path, figure_dir, table_dir, meta_dir, table_model
         if not os.path.exists(vectorstore_path) or not os.path.exists(db_path):
             all_text = process_one_pdf_papermage(pdf_path, table_path, figure_path, flag)
             print(f"Processing {os.path.basename(pdf_path)}")
-            utils.save_local_document_vector_store(all_text, vectorstore_path, db_path, openai_key)
+            utils.save_local_document_vector_store(all_text, vectorstore_path, db_path, azure_openai_key)
     except Exception as e:
         print(f"Failed to process {pdf_path}")
         print(f"Error: {e}")
@@ -347,7 +347,7 @@ def update_global_vars(args):
         'table_dir': args.table_dir,
         'meta_dir': args.meta_dir,
         'vectorstore_dir': args.vectorstore_dir,
-        'openai_key': args.openai_key
+        'azure_openai_key': args.openai_key
     }
 
     # Update global variables
@@ -363,7 +363,7 @@ if __name__ == "__main__":
     parser.add_argument('--figure_model', type=str, required=False, help='Model to use for figure extraction.', default="gpt-4o-mini")
     parser.add_argument('--meta_model', type=str, required=False, help='Model to use for meta information extraction.', default="gpt-3.5-turbo-1106")
     parser.add_argument('--fast', action='store_true', default=False, help='Use fast mode (LLM) to extract tables')
-    parser.add_argument('--openai_key', type=str, required=False, help='OpenAI API key.', default=GV.openai_key)
+    parser.add_argument('--openai_key', type=str, required=False, help='Azure OpenAI API key.', default=GV.azure_openai_key)
     parser.add_argument('--vectorstore_dir', type=str, required=False, help='Directory for vector store.', default=GV.vectorstore_dir)
     parser.add_argument('--pdf_path', type=str, required=False, help='Path to a single PDF file to process.')
     parser.add_argument('--flag', type=str, choices=['all', 'table', 'figure', "none"], default='all', help='Specify which elements to process: all, table, figure, none (using text only)')
@@ -389,7 +389,7 @@ if __name__ == "__main__":
         'figure_model': args.figure_model,
         'meta_model': args.meta_model,
         'mode': mode,
-        'openai_key': args.openai_key,
+        'azure_openai_key': args.openai_key,
         'vectorstore_dir': args.vectorstore_dir,
         'flag': args.flag
     }
@@ -416,7 +416,7 @@ if __name__ == "__main__":
             figure_model=args.figure_model,
             meta_model=args.meta_model,
             mode=mode,
-            openai_key=args.openai_key,
+            azure_openai_key=args.openai_key,
             vectorstore_dir=args.vectorstore_dir,
             flag=args.flag
         )
@@ -430,7 +430,7 @@ if __name__ == "__main__":
             figure_model=args.figure_model,
             meta_model=args.meta_model,
             mode=mode,
-            openai_key=args.openai_key,
+            azure_openai_key=args.openai_key,
             vectorstore_dir=args.vectorstore_dir,
             flag=args.flag
         )

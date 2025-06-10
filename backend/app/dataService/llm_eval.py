@@ -10,7 +10,7 @@ try:
 except:
     from app.dataService import globalVariable as GV
 
-os.environ["OPENAI_API_KEY"] = GV.openai_key
+os.environ["OPENAI_API_KEY"] = GV.azure_openai_key
 def llm_evaluate_deepeval(metrics=['faithfulness', 'answer_relevancy', 'contextual_relevancy'], question=None, answer=None, contexts=None):
     """
     Evaluates the LLM response using specified metrics.
