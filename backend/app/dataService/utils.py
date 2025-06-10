@@ -85,7 +85,7 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import ChatOpenAI, AzureChatOpenAI, OpenAIEmbeddings, AzureOpenAIEmbeddings
 
 # Local imports
 try:
@@ -111,9 +111,21 @@ def summarize_text_openai(texts: List[str], openai_key: str, model_name: str = "
     prompt_text = """You are an assistant tasked with summarizing tables and text. \
     Give a concise summary of the table or text. Table or text chunk: {element} """
     prompt = ChatPromptTemplate.from_template(prompt_text)
-    model = ChatOpenAI(temperature=0, 
-                       model=model_name, 
-                       api_key=openai_key)
+    if GV.azure_openai_key:
+        model = AzureChatOpenAI(
+            temperature=0,
+            azure_endpoint=GV.azure_openai_endpoint,
+            azure_deployment=GV.azure_openai_deployment,
+            api_version=GV.azure_openai_version,
+            api_key=GV.azure_openai_key,
+            model=model_name,
+        )
+    else:
+        model = ChatOpenAI(
+            temperature=0,
+            model=model_name,
+            api_key=openai_key,
+        )
     summarize_chain = {"element": lambda x: x} | prompt | model | StrOutputParser()
     
     results = []
@@ -162,7 +174,13 @@ def build_local_document_vector_store(texts: List[str], openai_key: str) -> tupl
             valid_texts.append(result["original"])
     
     # Create vectorstore
-    vectorstore = FAISS.from_documents(summary_texts, OpenAIEmbeddings(openai_api_key=openai_key))
+    embedding_model = AzureOpenAIEmbeddings(
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+    ) if GV.azure_openai_key else OpenAIEmbeddings(openai_api_key=openai_key)
+    vectorstore = FAISS.from_documents(summary_texts, embedding_model)
     
     # Create docstore
     docstore = InMemoryStore()
@@ -189,7 +207,13 @@ def save_local_document_vector_store(texts: list[str], output_vectorstore_path: 
             valid_texts.append(result["original"])
 
     # Create vectorstore
-    vectorstore = FAISS.from_documents(summary_texts, OpenAIEmbeddings(openai_api_key=openai_key))
+    embedding_model = AzureOpenAIEmbeddings(
+        azure_endpoint=GV.azure_openai_endpoint,
+        azure_deployment=GV.azure_openai_deployment,
+        api_version=GV.azure_openai_version,
+        api_key=GV.azure_openai_key,
+    ) if GV.azure_openai_key else OpenAIEmbeddings(openai_api_key=openai_key)
+    vectorstore = FAISS.from_documents(summary_texts, embedding_model)
     
     # Create docstore
     docstore = InMemoryStore()
@@ -247,14 +271,23 @@ def build_rag_chain(retriever):
     Question: {question}
     """
     prompt = ChatPromptTemplate.from_template(template)
-    model = ChatOpenAI(temperature=0, 
-                    #    model="gpt-4-1106-preview", 
-                       model="gpt-4o",
-                       openai_api_key = GV.openai_key,
-                       model_kwargs={
-                           # "seed": 42,
-                           "response_format": { "type": "json_object" }
-                       })
+    if GV.azure_openai_key:
+        model = AzureChatOpenAI(
+            temperature=0,
+            azure_endpoint=GV.azure_openai_endpoint,
+            azure_deployment=GV.azure_openai_deployment,
+            api_version=GV.azure_openai_version,
+            api_key=GV.azure_openai_key,
+            model="gpt-4o",
+            model_kwargs={"response_format": {"type": "json_object"}},
+        )
+    else:
+        model = ChatOpenAI(
+            temperature=0,
+            model="gpt-4o",
+            openai_api_key=GV.openai_key,
+            model_kwargs={"response_format": {"type": "json_object"}},
+        )
     retreival_chain = (
         {
             "question": itemgetter("question"),
@@ -723,12 +756,17 @@ def describe_figure(image_path, caption, model, api_key):
     }
 
     payload = {
-    "model": model,
-    "messages": figure_describe_prompt_template(caption, base64_image),
-    "max_tokens": 300
+        "model": model,
+        "messages": figure_describe_prompt_template(caption, base64_image),
+        "max_tokens": 300,
     }
 
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    if GV.azure_openai_key:
+        url = f"{GV.azure_openai_endpoint}/openai/deployments/{GV.azure_openai_deployment}/chat/completions?api-version={GV.azure_openai_version}"
+    else:
+        url = "https://api.openai.com/v1/chat/completions"
+
+    response = requests.post(url, headers=headers, json=payload)
 
     return response.json()["choices"][0]["message"]["content"]
 
@@ -859,14 +897,39 @@ def normalize_table_name(figure_name):
 
 def extract_pdf_table_llm_new(pdf_path, model_name, openai_api_key):
     # table structure model
-    structure_model = ChatOpenAI(model=model_name, 
-                                 temperature=0, 
-                                 api_key = openai_api_key, 
-                                 model_kwargs={"response_format": { "type": "json_object" }})
+    if GV.azure_openai_key:
+        structure_model = AzureChatOpenAI(
+            model=model_name,
+            temperature=0,
+            azure_endpoint=GV.azure_openai_endpoint,
+            azure_deployment=GV.azure_openai_deployment,
+            api_version=GV.azure_openai_version,
+            api_key=GV.azure_openai_key,
+            model_kwargs={"response_format": {"type": "json_object"}},
+        )
+    else:
+        structure_model = ChatOpenAI(
+            model=model_name,
+            temperature=0,
+            api_key=openai_api_key,
+            model_kwargs={"response_format": {"type": "json_object"}},
+        )
     # general model
-    model = ChatOpenAI(model=model_name, 
-                       temperature=0, 
-                       api_key = openai_api_key)
+    if GV.azure_openai_key:
+        model = AzureChatOpenAI(
+            model=model_name,
+            temperature=0,
+            azure_endpoint=GV.azure_openai_endpoint,
+            azure_deployment=GV.azure_openai_deployment,
+            api_version=GV.azure_openai_version,
+            api_key=GV.azure_openai_key,
+        )
+    else:
+        model = ChatOpenAI(
+            model=model_name,
+            temperature=0,
+            api_key=openai_api_key,
+        )
     table_extract_prompt = PromptTemplate(
         template = table_extract_prompt_template,
         input_variables=["page_content"]
@@ -925,9 +988,21 @@ def extract_pdf_table_llm_new(pdf_path, model_name, openai_api_key):
 def extract_pdf_table_llm(pdf_path, model, openai_api_key):
     # function: extract odf tables through llm
     os.environ["OPENAI_API_KEY"] = openai_api_key
-    model = ChatOpenAI(model="gpt-4-1106-preview", 
-                       temperature=0, 
-                       api_key = openai_api_key)
+    if GV.azure_openai_key:
+        model = AzureChatOpenAI(
+            model="gpt-4-1106-preview",
+            temperature=0,
+            azure_endpoint=GV.azure_openai_endpoint,
+            azure_deployment=GV.azure_openai_deployment,
+            api_version=GV.azure_openai_version,
+            api_key=GV.azure_openai_key,
+        )
+    else:
+        model = ChatOpenAI(
+            model="gpt-4-1106-preview",
+            temperature=0,
+            api_key=openai_api_key,
+        )
 
     table_extract_prompt = PromptTemplate(
         template = table_extract_prompt_template,
@@ -1109,9 +1184,21 @@ def extract_pdf_meta_information(pdf_path, model, openai_api_key):
     # # ---use pdfminer---
     # print(pdf_path)
     os.environ["OPENAI_API_KEY"] = openai_api_key
-    model = ChatOpenAI(model_name="gpt-3.5-turbo-1106", 
-                       temperature=0, 
-                       api_key = openai_api_key)
+    if GV.azure_openai_key:
+        model = AzureChatOpenAI(
+            model_name="gpt-3.5-turbo-1106",
+            temperature=0,
+            azure_endpoint=GV.azure_openai_endpoint,
+            azure_deployment=GV.azure_openai_deployment,
+            api_version=GV.azure_openai_version,
+            api_key=GV.azure_openai_key,
+        )
+    else:
+        model = ChatOpenAI(
+            model_name="gpt-3.5-turbo-1106",
+            temperature=0,
+            api_key=openai_api_key,
+        )
     paper_content = read_pdf(pdf_path, 2)
     # print("Start metainformation extraction")
     # print(paper_content)

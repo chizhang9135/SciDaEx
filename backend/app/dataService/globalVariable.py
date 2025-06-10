@@ -23,12 +23,17 @@ else:
 
 # Extract API keys and credentials from config
 openai_key = config.get('openai_key', None)
+azure_openai = config.get('azure_openai', {})
+azure_openai_key = azure_openai.get('api_key', None)
+azure_openai_endpoint = azure_openai.get('api_base', None)
+azure_openai_version = azure_openai.get('api_version', None)
+azure_openai_deployment = azure_openai.get('deployment_name', None)
 adobe_credentials = config.get('adobe_credentials', {})
 adobe_client_id = adobe_credentials.get('client_id', None)
 adobe_client_secret = adobe_credentials.get('client_secret', None)
 
 # if not all([openai_key, adobe_client_id, adobe_client_id, adobe_client_secret]):
-if not all([openai_key]):
+if not any([openai_key, azure_openai_key]):
     raise Exception("One or more API keys or credentials cannot be found or loaded. Please check the config file.")
 
 # Directory paths
@@ -44,10 +49,24 @@ vectorstore_dir = config.get('vectorstore_dir', os.path.join(data_dir, 'vectorst
 for directory in [data_dir, meta_dir, temp_dir, table_dir, figure_dir, vectorstore_dir]:
     os.makedirs(directory, exist_ok=True)
 
+# Configure OpenAI/Azure credentials for downstream modules
+if azure_openai_key:
+    os.environ["OPENAI_API_KEY"] = azure_openai_key
+    if azure_openai_endpoint:
+        os.environ["OPENAI_API_BASE"] = azure_openai_endpoint
+    if azure_openai_version:
+        os.environ["OPENAI_API_VERSION"] = azure_openai_version
+    os.environ["OPENAI_API_TYPE"] = "azure"
+    if azure_openai_deployment:
+        os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"] = azure_openai_deployment
+else:
+    os.environ["OPENAI_API_KEY"] = openai_key
+
 
 def update_global_variables(**kwargs):
     """Update global variables with provided values"""
     global data_dir, figure_dir, table_dir, meta_dir, vectorstore_dir, openai_key
+    global azure_openai_key, azure_openai_endpoint, azure_openai_version, azure_openai_deployment
     
     # Update each variable if provided in kwargs
     if 'data_dir' in kwargs:
@@ -71,6 +90,14 @@ def update_global_variables(**kwargs):
         vectorstore_dir = os.path.join(data_dir, 'vectorstore')
     if 'openai_key' in kwargs:
         openai_key = kwargs['openai_key']
+    if 'azure_openai_key' in kwargs:
+        azure_openai_key = kwargs['azure_openai_key']
+    if 'azure_openai_endpoint' in kwargs:
+        azure_openai_endpoint = kwargs['azure_openai_endpoint']
+    if 'azure_openai_version' in kwargs:
+        azure_openai_version = kwargs['azure_openai_version']
+    if 'azure_openai_deployment' in kwargs:
+        azure_openai_deployment = kwargs['azure_openai_deployment']
 
 # ##############################
 # prompts

@@ -19,12 +19,20 @@ This folder contains the core data processing and extraction functionalities for
 1. Ensure all required libraries are installed (see requirements.txt in the parent directory).
 2. Create a `config.yml` file in this directory with the following structure:
    ```yaml
+   # For OpenAI API
    openai_key: your_openai_key_here
+
+   # Or for Azure OpenAI
+   azure_openai:
+     api_key: your_azure_openai_key
+     api_base: https://your-resource.openai.azure.com
+     api_version: 2024-05-01-preview
+     deployment_name: gpt-4o-deployment
 
    adobe_credentials:
      client_id: your_adobe_client_id_here
      client_secret: your_adobe_client_secret_here
-    ```
+   ```
    - Replace the placeholder values in `config.yml` with your actual API keys and credentials.
       - [Adobe credentials](https://acrobatservices.adobe.com/dc-integration-creation-app-cdn/main.html?api=pdf-services-api)
 
