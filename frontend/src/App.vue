@@ -204,6 +204,8 @@ export default {
       qaFields: [],
       qaSelectedOpt: "",
       qaFilterVal: "",
+      // openai key
+      openai_key: "",
       // pdf info
       tableLists: [],
       metaInfo: {
@@ -352,7 +354,7 @@ export default {
       console.log("filenames for clustering pdfs", filenames);
 
       let dbData = this.dbTable.getData();
-      service.extract_meta_from_pdf(fileList, (metaInfos) => {
+      service.extract_meta_from_pdf(fileList, this.openai_key, (metaInfos) => {
         // meta information
         let pdf_meta = [];
         metaInfos.map((meta, i) => {
@@ -969,7 +971,7 @@ export default {
     displayPDFTable(filename) {
       console.log("displayPDFTable", filename);
 
-      service.extract_table_from_pdf([{ "name": filename }], tables => {
+      service.extract_table_from_pdf([{ "name": filename }], this.openai_key, tables => {
         console.log("extract_table_from_pdf: ", tables[0], typeof tables[0], typeof tables);
         this.tableLists = tables[0];
         if (tables[0] && tables[0].length > 0 && !this.paperInfoList.includes("Table")) {
@@ -980,7 +982,7 @@ export default {
     displayPDFMeta(filename) {
       console.log("displayPDFMeta", filename);
 
-      service.extract_meta_from_pdf([{ "name": filename }], meta => {
+      service.extract_meta_from_pdf([{ "name": filename }], this.openai_key, meta => {
         // console.log("extract_meta_from_pdf: ", meta[0]);
         this.metaInfo = meta[0];
       });
@@ -988,7 +990,7 @@ export default {
     displayPDFFigure(filename) {
       console.log("displayPDFFigure", filename);
 
-      service.extract_figure_from_pdf([{ "name": filename }], figures => {
+      service.extract_figure_from_pdf([{ "name": filename }], this.openai_key, figures => {
         console.log("extract_figure_from_pdf: ", figures[0]);
         this.figLists = figures[0];
         if (figures[0] && figures[0].length > 0 && !this.paperInfoList.includes("Figure")) {

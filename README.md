@@ -67,10 +67,12 @@ npm install
       api_base: https://your-resource.openai.azure.com
       api_version: 2024-05-01-preview
       deployment_name: gpt-4o-deployment
-
+      embedding_deployment_name: text-embedding-3-small-deployment  # Add this if using vector search
+    
     adobe_credentials:
-       client_id: your_adobe_client_id
-       client_secret: your_adobe_client_secret
+      client_id: your_adobe_client_id
+      client_secret: your_adobe_client_secret
+
     ```
 
 ## 💻 Usage

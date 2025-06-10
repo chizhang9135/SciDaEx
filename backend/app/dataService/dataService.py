@@ -93,7 +93,7 @@ class DataService(object):
                 if load_flag:
                     embedding_model = AzureOpenAIEmbeddings(
                         azure_endpoint=GV.azure_openai_endpoint,
-                        azure_deployment=GV.azure_openai_deployment,
+                        azure_deployment=GV.azure_embedding_deployment,
                         api_version=GV.azure_openai_version,
                         api_key=GV.azure_openai_key,
                     )
