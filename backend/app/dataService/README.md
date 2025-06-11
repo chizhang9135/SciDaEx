@@ -45,8 +45,8 @@ You can use `preprocess.py` to process either a folder of PDFs or a single PDF f
    --figure_dir <path_to_figure_output_folder> \
    --table_dir <path_to_table_output_folder> \
    --meta_dir <path_to_meta_output_folder> \
-   --vectorstore_dir <path_to_vectorstore_output_folder>
-   ```
+ --vectorstore_dir <path_to_vectorstore_output_folder>
+  ```
 
 2. Processing a folder of PDFs:
    ```python
@@ -56,8 +56,11 @@ You can use `preprocess.py` to process either a folder of PDFs or a single PDF f
    --table_dir <path_to_table_output_folder> \
    --meta_dir <path_to_meta_output_folder> \
    --vectorstore_dir <path_to_vectorstore_output_folder>
-   ```
+  ```
 Add the `--fast` flag for faster, non-LLM-based table extraction. For more options, run python preprocess.py --help.
+
+Make sure the `vectorstore_dir` value in your `config.yml` matches the directory
+used during preprocessing. `DataService` loads vector stores from this location.
 
 ### Using dataService.py
 
