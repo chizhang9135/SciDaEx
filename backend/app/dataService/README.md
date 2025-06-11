@@ -36,8 +36,14 @@ This folder contains the core data processing and extraction functionalities for
 
 ### Preprocess PDFs
 
-You can use `preprocess.py` to process either a folder of PDFs or a single PDF file: 
+You can use `preprocess.py` to process either a folder of PDFs or a single PDF file with
 
+#### Basic
+```bash
+python preprocess.py
+```
+
+#### Advance
 1. Processing a folder of PDFs:
    ```python
    python preprocess.py \
