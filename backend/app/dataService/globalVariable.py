@@ -2,7 +2,6 @@
 # Global variables
 # ##############################
 import os
-import os
 import yaml
 from typing import Dict, Any
 
@@ -27,7 +26,7 @@ azure_openai_key = azure_openai.get('api_key', None)
 azure_openai_endpoint = azure_openai.get('api_base', None)
 azure_openai_version = azure_openai.get('api_version', None)
 azure_openai_deployment = azure_openai.get('deployment_name', None)
-azure_embedding_deployment = config["azure_openai"]["embedding_deployment_name"]
+azure_embedding_deployment = azure_openai.get('embedding_deployment_name', None)
 adobe_credentials = config.get('adobe_credentials', {})
 adobe_client_id = adobe_credentials.get('client_id', None)
 adobe_client_secret = adobe_credentials.get('client_secret', None)

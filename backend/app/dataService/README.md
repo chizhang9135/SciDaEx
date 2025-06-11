@@ -48,7 +48,7 @@ You can use `preprocess.py` to process either a folder of PDFs or a single PDF f
  --vectorstore_dir <path_to_vectorstore_output_folder>
   ```
 
-2. Processing a folder of PDFs:
+2. Processing a single PDF file:
    ```python
    python preprocess.py \
    --pdf_path <path_to_single_pdf_file> \
