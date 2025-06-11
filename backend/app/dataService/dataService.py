@@ -62,6 +62,7 @@ class DataService(object):
 
         self.paper_folder = GV.data_dir
         self.table_folder = GV.table_dir
+        self.vectorstore_folder = GV.vectorstore_dir
 
         self.load_flag = True # load precomputed vectorstore and docstore
         self.vectorstore_loaded = False
@@ -88,8 +89,8 @@ class DataService(object):
         retrievers = {}
         for pdf_file in os.listdir(data_folder):
             if pdf_file.endswith(".pdf"):
-                vectorstore_path = os.path.join(data_folder, "vectorstore", pdf_file.split(".")[0], "vector_index")
-                db_path = os.path.join(data_folder, "vectorstore", pdf_file.split(".")[0], pdf_file.split(".")[0] + ".pickle")
+                vectorstore_path = os.path.join(self.vectorstore_folder, pdf_file.split(".")[0], "vector_index")
+                db_path = os.path.join(self.vectorstore_folder, pdf_file.split(".")[0], pdf_file.split(".")[0] + ".pickle")
                 if load_flag:
                     embedding_model = AzureOpenAIEmbeddings(
                         azure_endpoint=GV.azure_openai_endpoint,
