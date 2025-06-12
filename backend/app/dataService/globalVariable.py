@@ -37,7 +37,7 @@ docintel_endpoint = document_intelligence.get('endpoint', None)
 docintel_key = document_intelligence.get('key', None)
 
 
-# Require Azure OpenAI and Document Intelligence credentials (Adobe is optional)
+# Require Azure OpenAI and Document Intelligence credentials
 missing = []
 if not azure_openai_key:
     missing.append("azure_openai.api_key")
