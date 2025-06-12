@@ -109,7 +109,7 @@ class DataService(object):
                     pdf_path = os.path.join(data_folder, pdf_file)
                     table_path = os.path.join(table_folder, pdf_file.split(".")[0] + ".json")
                     all_text = preprocess.process_one_pdf_papermage(pdf_path, table_path)
-                    vectorstore, docstore = utils.build_local_document_vector_store(all_text, GV.azure_openai_key)
+                    vectorstore, docstore = utils.build_local_document_vector_store(all_text)
                 retriever = utils.build_multivector_retriever(vectorstore, docstore, id_key=id_key)
                 retrievers[pdf_file] = retriever
         self.retrievers = retrievers

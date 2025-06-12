@@ -31,9 +31,32 @@ adobe_credentials = config.get('adobe_credentials', {})
 adobe_client_id = adobe_credentials.get('client_id', None)
 adobe_client_secret = adobe_credentials.get('client_secret', None)
 
-# Require Azure OpenAI credentials
+# Extract Document Intelligence credentials
+document_intelligence = config.get('document_intelligence', {})
+docintel_endpoint = document_intelligence.get('endpoint', None)
+docintel_key = document_intelligence.get('key', None)
+
+
+# Require Azure OpenAI and Document Intelligence credentials (Adobe is optional)
+missing = []
 if not azure_openai_key:
-    raise Exception("One or more API keys or credentials cannot be found or loaded. Please check the config file.")
+    missing.append("azure_openai.api_key")
+if not azure_openai_endpoint:
+    missing.append("azure_openai.api_base")
+if not azure_openai_version:
+    missing.append("azure_openai.api_version")
+if not azure_openai_deployment:
+    missing.append("azure_openai.deployment_name")
+if not azure_embedding_deployment:
+    missing.append("azure_openai.embedding_deployment_name")
+if not docintel_key:
+    missing.append("document_intelligence.key")
+if not docintel_endpoint:
+    missing.append("document_intelligence.endpoint")
+
+if missing:
+    raise Exception(f"The following required keys are missing in config.yml: {', '.join(missing)}")
+
 
 # Directory paths
 # Set directory paths with config values or defaults
@@ -50,13 +73,14 @@ for directory in [data_dir, meta_dir, temp_dir, table_dir, figure_dir, vectorsto
 
 # Configure OpenAI/Azure credentials for downstream modules
 os.environ["OPENAI_API_KEY"] = azure_openai_key
-if azure_openai_endpoint:
-    os.environ["OPENAI_API_BASE"] = azure_openai_endpoint
-if azure_openai_version:
-    os.environ["OPENAI_API_VERSION"] = azure_openai_version
+os.environ["OPENAI_API_BASE"] = azure_openai_endpoint
+os.environ["OPENAI_API_VERSION"] = azure_openai_version
 os.environ["OPENAI_API_TYPE"] = "azure"
-if azure_openai_deployment:
-    os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"] = azure_openai_deployment
+os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"] = azure_openai_deployment
+
+# Set environment variables for Document Intelligence
+os.environ["AZURE_DOCINTEL_ENDPOINT"] = docintel_endpoint
+os.environ["AZURE_DOCINTEL_KEY"] = docintel_key
 
 
 def update_global_variables(**kwargs):

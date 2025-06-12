@@ -107,7 +107,8 @@ except ImportError:
         table_structure_prompt_templatev2
     )
     
-def summarize_texts(texts: List[str], azure_openai_key: str, model_name: str = "gpt-3.5-turbo-1106", max_workers: int = 5) -> list[dict[str, str]]:
+def summarize_texts(texts: List[str], model_name: str = "gpt-3.5-turbo-1106",
+                    max_workers: int = 5) -> list[dict[str, str]]:
     prompt_text = """You are an assistant tasked with summarizing tables and text. \
     Give a concise summary of the table or text. Table or text chunk: {element} """
     prompt = ChatPromptTemplate.from_template(prompt_text)
@@ -148,11 +149,11 @@ def summarize_single_text(text: str, summarize_chain) -> tuple[str, str]:
         print(error_message)
         return "Summary unavailable due to processing error.", error_message
 
-def build_local_document_vector_store(texts: List[str], azure_openai_key: str) -> tuple[FAISS, InMemoryStore]:
+def build_local_document_vector_store(texts: List[str]) -> tuple[FAISS, InMemoryStore]:
     id_key = "doc_id"
     
     # Summarize the texts
-    summary_results = summarize_texts(texts, azure_openai_key)
+    summary_results = summarize_texts(texts)
     
     # Create documents, filtering out failed summaries
     doc_ids = []
@@ -185,7 +186,7 @@ def save_local_document_vector_store(texts: list[str], output_vectorstore_path: 
     id_key = "doc_id"
     
     # Summarize the texts
-    summary_results = summarize_texts(texts, azure_openai_key)
+    summary_results = summarize_texts(texts)
     
     # Create documents, filtering out failed summaries
     doc_ids = []
@@ -463,6 +464,7 @@ def combine_results(all_results):
 
     return combined
 
+# TODO Port to Azure
 def extract_figures_tables_through_adobe(pdf_path=os.path.join(GV.data_dir, "Abiodun.pdf"), 
                                          client_id=GV.adobe_client_id, 
                                          client_secret=GV.adobe_client_secret):
@@ -638,7 +640,7 @@ def merge_figures(figure_list):
     
     return merged_captions
 
-
+# TODO Port to Azure
 def extract_figure_caption_and_page_adobe(pdf_path):
     # function: leverage adobe api to extract the figure captions (* used at this time)
    
@@ -877,7 +879,7 @@ def normalize_table_name(figure_name):
     
     return figure_name
 
-def extract_pdf_table_llm_new(pdf_path, model_name, openai_api_key):
+def extract_pdf_table_llm_new(pdf_path, model_name):
     # table structure model
     structure_model = AzureChatOpenAI(
         model=model_name,
@@ -952,9 +954,8 @@ def extract_pdf_table_llm_new(pdf_path, model_name, openai_api_key):
     pdf_file.close()
     return valid_table_inf_list
 
-def extract_pdf_table_llm(pdf_path, model, openai_api_key):
+def extract_pdf_table_llm(pdf_path):
     # function: extract odf tables through llm
-    os.environ["OPENAI_API_KEY"] = openai_api_key
     model = AzureChatOpenAI(
         model="gpt-4-1106-preview",
         temperature=0,
@@ -1018,6 +1019,7 @@ def extract_pdf_table_llm(pdf_path, model, openai_api_key):
     pdf_file.close()
     return table_inf_list
 
+# TODO Port to Azure
 def extract_pdf_table_adobe(pdf_path):
     # exract tables from pdf through Adobe
     output_dir = os.path.join(GV.data_dir, "output")
@@ -1086,7 +1088,7 @@ def extract_pdf_table_adobe(pdf_path):
         table_info_list[i]['table_content'] = df.to_json(orient="records")
     return table_info_list
 
-def process_tables(pdf_folder, table_folder, model, openai_api_key):
+def process_tables(pdf_folder, table_folder, model):
     """
     Process tables from all PDFs in a folder and save the results as JSON files.
 
@@ -1094,7 +1096,6 @@ def process_tables(pdf_folder, table_folder, model, openai_api_key):
         pdf_folder (str): Path to the folder containing PDF files.
         table_folder (str): Path to the folder where table JSON files will be saved.
         model (str): Name of the LLM model to use for table extraction.
-        openai_api_key (str): Azure OpenAI API key for LLM access.
     """
     for pidx, pdf_file in tqdm(enumerate(os.listdir(pdf_folder)), total=len(os.listdir(pdf_folder))):
         if pdf_file[-3:] != 'pdf':
@@ -1105,7 +1106,7 @@ def process_tables(pdf_folder, table_folder, model, openai_api_key):
             if model == "none":
                 table_example = extract_pdf_table_adobe(pdf_path)
             else:
-                table_example = extract_pdf_table_llm_new(pdf_path, model, openai_api_key)  
+                table_example = extract_pdf_table_llm_new(pdf_path, model)
         except Exception as e:
             print(f"Error processing tables in PDF file {pdf_path}: {str(e)}")
             table_example = []
@@ -1113,7 +1114,7 @@ def process_tables(pdf_folder, table_folder, model, openai_api_key):
         with open(os.path.join(table_folder, pdf_name + ".json"), "w") as f:
             json.dump(table_example, f)
 
-def process_single_pdf_table(pdf_path, table_folder, model, openai_api_key):
+def process_single_pdf_table(pdf_path, table_folder, model):
     """
     Process tables from a single PDF file and save the results as a JSON file.
 
@@ -1121,7 +1122,6 @@ def process_single_pdf_table(pdf_path, table_folder, model, openai_api_key):
         pdf_path (str): Path to the PDF file.
         table_folder (str): Path to the folder where the table JSON file will be saved.
         model (str): Name of the LLM model to use for table extraction, such as "gpt-4o", "gpt-4-turbo"
-        openai_api_key (str): Azure OpenAI API key for LLM access.
     """
     if os.path.basename(pdf_path)[-3:] != 'pdf':
         raise Exception("Invalid PDF file")
@@ -1131,7 +1131,7 @@ def process_single_pdf_table(pdf_path, table_folder, model, openai_api_key):
         if model == "none":
             table_example = extract_pdf_table_adobe(pdf_path)
         else:
-            table_example = extract_pdf_table_llm_new(pdf_path, model, openai_api_key)
+            table_example = extract_pdf_table_llm_new(pdf_path, model)
     except Exception as e:
         print(f"Error processing tables in PDF file {pdf_path}: {str(e)}")
         table_example = []
@@ -1140,10 +1140,9 @@ def process_single_pdf_table(pdf_path, table_folder, model, openai_api_key):
 
 #####################################################################################
 # meta-information special functions
-def extract_pdf_meta_information(pdf_path, model, openai_api_key):
+def extract_pdf_meta_information(pdf_path):
     # # ---use pdfminer---
     # print(pdf_path)
-    os.environ["OPENAI_API_KEY"] = openai_api_key
     model = AzureChatOpenAI(
         model_name="gpt-3.5-turbo-1106",
         temperature=0,
@@ -1194,32 +1193,30 @@ def extract_pdf_meta_information(pdf_path, model, openai_api_key):
     
     return meta_info
 
-def process_meta_information(pdf_folder, meta_folder, model, openai_api_key):
+def process_meta_information(pdf_folder, meta_folder):
     """
     Process meta information from all PDFs in a folder and save the results as JSON files.
 
     Args:
         pdf_folder (str): Path to the folder containing PDF files.
         meta_folder (str): Path to the folder where meta information JSON files will be saved.
-        model (str): Name of the LLM model to use for meta information extraction.
-        openai_api_key (str): Azure OpenAI API key for LLM access.
     """
     for pidx, pdf_file in tqdm(enumerate(os.listdir(pdf_folder)), total=len(os.listdir(pdf_folder))):
         if pdf_file[-3:] != 'pdf':
             continue
         pdf_name = pdf_file.split(".")[0]
         pdf_path = os.path.join(pdf_folder, pdf_file)
-        meta_example = extract_pdf_meta_information(pdf_path, model, openai_api_key)
+        meta_example = extract_pdf_meta_information(pdf_path)
         with open(os.path.join(meta_folder, pdf_name + ".json"), "w") as f:
             json.dump(meta_example, f)
 
-def process_single_pdf_meta_information(pdf_path, meta_folder, model, openai_api_key):
+def process_single_pdf_meta_information(pdf_path, meta_folder):
     # Function to process meta information in a single PDF and save meta json file
     # input: pdf_path, meta_folder, model = "gpt-3.5-turbo-1106", openai_api_key
     if os.path.basename(pdf_path)[-3:] != 'pdf':
         raise Exception("Invalid PDF file")
     print("Processing single PDF for meta information extraction")
     pdf_name = os.path.basename(pdf_path).split(".")[0]
-    meta_example = extract_pdf_meta_information(pdf_path, model, openai_api_key)
+    meta_example = extract_pdf_meta_information(pdf_path)
     with open(os.path.join(meta_folder, pdf_name + ".json"), "w") as f:
         json.dump(meta_example, f)

@@ -258,9 +258,9 @@ def preprocess_folder(pdf_dir, figure_dir, table_dir, meta_dir, table_model, fig
 
     if flag in ["all", "table"]:
         # process tables
-        utils.process_tables(data_folder, table_folder, table_model, azure_openai_key)
-    
-    utils.process_meta_information(data_folder, meta_folder, meta_model, azure_openai_key)
+        utils.process_tables(data_folder, table_folder, table_model)
+
+    utils.process_meta_information(data_folder, meta_folder)
 
     # start to generate vector stores
     for filename in tqdm(os.listdir(data_folder)):
@@ -313,10 +313,10 @@ def preprocess_single_pdf(pdf_path, figure_dir, table_dir, meta_dir, table_model
 
     if flag in ["all", "table"]:
         # process tables
-        utils.process_single_pdf_table(pdf_path, table_folder, table_model, azure_openai_key)
+        utils.process_single_pdf_table(pdf_path, table_folder, table_model)
     
     # process meta information
-    utils.process_single_pdf_meta_information(pdf_path, meta_folder, meta_model, azure_openai_key)
+    utils.process_single_pdf_meta_information(pdf_path, meta_folder)
 
     # start to generate vector stores
     try:

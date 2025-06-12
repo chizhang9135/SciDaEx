@@ -349,42 +349,34 @@ export default {
       const _this = this;
       console.log("fileList changed", fileList);
       let filenames = fileList.map((file) => {
-        return { name: file.name };
+        return file.name;
       });
       console.log("filenames for clustering pdfs", filenames);
 
       let dbData = this.dbTable.getData();
-      service.extract_meta_from_pdf(filenames, (metaInfos) => {
+      service.extract_meta_from_pdf(fileList,(metaInfos) => {
         // meta information
         let pdf_meta = [];
-        metaInfos.forEach((meta, i) => {
+        metaInfos.map((meta, i) => {
           let pdf_file = fileList[i].name;
           pdf_meta.push({
             "pdf_file": pdf_file,
             "citation": utils.formatCitationAPA(meta),
             "url": meta.Link
-          });
+          })
         });
-        
         // join with current db table
-        let merged_dbData = utils.joinArrays(dbData, pdf_meta, ["pdf_file"], "outer");
+        // console.log("meta data & db data:", pdf_meta, dbData);
+        let merged_dbData = utils.joinArrays(dbData, pdf_meta, ["pdf_file"], "outer")
         console.log("merged_dbData", merged_dbData);
-
-        // Also fetch tables and figures
-        service.extract_table_from_pdf(filenames, (tableInfos) => {
-          _this.tableLists = tableInfos;
-        });
-
-        service.extract_figure_from_pdf(filenames, (figInfos) => {
-          _this.figLists = figInfos;
-        });
 
         _this.dbTable = new Tabulator("#db-table", {
           data: merged_dbData,
           autoColumns: true,
           columnDefaults: {
-            maxWidth: 250,
+            maxWidth: 250, //maximum column width of 300px for all columns
           },
+
           autoColumnsDefinitions: function (definitions) {
             definitions.forEach((column) => {
               column.editor = true;
@@ -392,17 +384,19 @@ export default {
                 let filename = cell.getRow().getData().pdf_file;
                 let idx = _this.fileList.findIndex((file) => {
                   return file.name == filename;
-                });
+                })
                 _this.selectedFile = _this.fileList[idx].raw;
               }
             });
+
             return definitions;
           },
         });
         _this.fields = Object.keys(merged_dbData[0]).map(field => {
           return { "value": field }
-        });
-      });
+        })
+
+      })
     },
     selectedFile(selectedFile) {
       console.log("selectedFile changed", this.pdfUrlPrefix + '/' + this.selectedFile.name);
