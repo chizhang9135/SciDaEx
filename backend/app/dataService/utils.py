@@ -67,8 +67,10 @@ from sklearn.metrics import silhouette_score
 from tqdm import tqdm
 
 # Azure Document Intelligence imports
-from azure.ai.documentintelligence import DocumentAnalysisClient
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 from azure.core.credentials import AzureKeyCredential
+
 
 # Langchain imports
 from langchain.pydantic_v1 import BaseModel, Field
@@ -463,13 +465,17 @@ def extract_figures_tables_through_adobe(pdf_path=os.path.join(GV.data_dir, "Abi
                                          client_id=None,
                                          client_secret=None):
     """Analyze a PDF with Azure Document Intelligence and return the result."""
-    client = DocumentAnalysisClient(
+    client = DocumentIntelligenceClient(
         endpoint=GV.docintel_endpoint,
         credential=AzureKeyCredential(GV.docintel_key)
     )
+
     with open(pdf_path, "rb") as f:
-        poller = client.begin_analyze_document("prebuilt-layout", document=f)
-    return poller.result()
+        poller = client.begin_analyze_document("prebuilt-layout", f)
+        result = poller.result()
+
+    return result
+
 
 #####################################################################################
 # Figure special functions
@@ -612,13 +618,14 @@ def extract_figure_caption_and_page_adobe(pdf_path):
 
     pattern = r"^(?i)\s*(F\s*I\s*G(\s*U\s*R\s*E)?)"
 
-    client = DocumentAnalysisClient(
+    client = DocumentIntelligenceClient(
         endpoint=GV.docintel_endpoint,
-        credential=AzureKeyCredential(GV.docintel_key),
+        credential=AzureKeyCredential(GV.docintel_key)
     )
+
     with open(pdf_path, "rb") as f:
-        poller = client.begin_analyze_document("prebuilt-layout", document=f)
-    result = poller.result()
+        poller = client.begin_analyze_document("prebuilt-layout", f)
+        result = poller.result()
 
     page_list = []
     figure_list = []
@@ -953,14 +960,15 @@ def extract_pdf_table_llm(pdf_path):
 def extract_pdf_table_adobe(pdf_path):
     """Extract tables from PDF using Azure Document Intelligence."""
 
-    client = DocumentAnalysisClient(
+    client = DocumentIntelligenceClient(
         endpoint=GV.docintel_endpoint,
-        credential=AzureKeyCredential(GV.docintel_key),
+        credential=AzureKeyCredential(GV.docintel_key)
     )
 
     with open(pdf_path, "rb") as f:
-        poller = client.begin_analyze_document("prebuilt-layout", document=f)
-    result = poller.result()
+        poller = client.begin_analyze_document("prebuilt-layout", f)
+
+        result = poller.result()
 
     table_info_list = []
     table_name_list = []

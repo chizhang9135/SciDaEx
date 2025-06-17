@@ -1,25 +1,30 @@
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 import pickle
 import json
 import time
 import re
 import yaml
-try:
-    import globalVariable as GV
-    import utils as utils
-except:
-    import app.dataService.globalVariable as GV
-    import app.dataService.utils as utils
-
-from unstructured.partition.pdf import partition_pdf
-from tqdm import tqdm 
+from tqdm import tqdm
 import argparse
 
-def split_into_chunks(text, 
-                      section_boundaries, 
-                      excluded_ranges, 
-                      max_chunk_size = 4000, 
-                      target_chars = 3800, 
+try:
+    from app.dataService import globalVariable as GV
+    from app.dataService import utils as utils
+except ImportError:
+    import globalVariable as GV
+    import utils as utils
+
+from unstructured.partition.pdf import partition_pdf
+
+
+def split_into_chunks(text,
+                      section_boundaries,
+                      excluded_ranges,
+                      max_chunk_size = 4000,
+                      target_chars = 3800,
                       combine_text_under_n_chars = 2000):
     # Function to check if a given index falls within any excluded ranges
     def is_excluded(index):
@@ -32,7 +37,7 @@ def split_into_chunks(text,
     def merge_small_chunks(chunks):
         merged_chunks = []
         buffer = ""
-    
+
         for chunk in chunks:
             if len(buffer) + len(chunk) < combine_text_under_n_chars:
                 buffer += chunk
@@ -42,10 +47,10 @@ def split_into_chunks(text,
                 else:  # Otherwise, add the buffer as a separate chunk
                     merged_chunks.append(buffer)
                     buffer = chunk
-    
+
         if buffer:  # Add any remaining buffer
             merged_chunks.append(buffer)
-    
+
         return merged_chunks
 
     # Split the text into sections while excluding specified ranges
@@ -100,7 +105,7 @@ def process_one_pdf_papermage(pdf_path, table_path, figure_path, flag='all'):
             """
             tables.append(table_text)
         all_text += tables
-    
+
     if flag in ['all', 'figure']:
         # --- load the figure
         figure_data = json.load(open(figure_path))
@@ -110,7 +115,7 @@ def process_one_pdf_papermage(pdf_path, table_path, figure_path, flag='all'):
             """
             figures.append(figure_text)
         all_text += figures
-    
+
     return all_text
 
 def clean_text(text):
@@ -221,7 +226,7 @@ def process_one_pdf(pdf_path, table_path, figure_path, flag='all'):
             """
             tables.append(table_text)
         all_text += tables
-    
+
     if flag in ['all', 'figure']:
         # Load the figure
         figure_data = json.load(open(figure_path))
@@ -239,14 +244,14 @@ def preprocess_folder(pdf_dir, figure_dir, table_dir, meta_dir, table_model, fig
     # Create directories if they don't exist
     for directory in [figure_dir, table_dir, meta_dir, vectorstore_dir]:
         os.makedirs(directory, exist_ok=True)
-    
+
     data_folder = pdf_dir
     table_folder = table_dir
     figure_folder = figure_dir
     vectorstore_dir = vectorstore_dir
     meta_folder = meta_dir
     mode = mode
-    
+
     failed_files = []
     if mode == "fast":
         table_model = "none"
@@ -287,26 +292,26 @@ def preprocess_single_pdf(pdf_path, figure_dir, table_dir, meta_dir, table_model
     # Create directories if they don't exist
     for directory in [figure_dir, table_dir, meta_dir, vectorstore_dir]:
         os.makedirs(directory, exist_ok=True)
-    
+
     pdf_path = pdf_path
     table_folder = table_dir
     figure_folder = figure_dir
     meta_folder = meta_dir
     vectorstore_dir = vectorstore_dir
     mode = mode
-    
+
     if not os.path.exists(pdf_path):
         print(f"File {pdf_path} does not exist.")
         return
     elif not pdf_path.endswith(".pdf"):
         print(f"File {pdf_path} is not a pdf file.")
         return
-    
+
     if mode == "fast":
         # if mode parameter is "fast", then set table_model to "none" to use the Azure Document Intelligence API
         table_model = "none"
         figure_model = "none"
-    
+
     if flag in ["all", "figure"]:
         # process figures
         utils.process_single_pdf_figure(pdf_path, figure_folder, figure_model, azure_openai_key)
@@ -314,7 +319,7 @@ def preprocess_single_pdf(pdf_path, figure_dir, table_dir, meta_dir, table_model
     if flag in ["all", "table"]:
         # process tables
         utils.process_single_pdf_table(pdf_path, table_folder, table_model)
-    
+
     # process meta information
     utils.process_single_pdf_meta_information(pdf_path, meta_folder)
 
@@ -339,7 +344,7 @@ def update_global_vars(args):
         import globalVariable as GV
     except:
         import app.dataService.globalVariable as GV
-    
+
     # Create update dictionary with provided arguments
     update_dict = {
         'data_dir': args.pdf_dir,
@@ -405,7 +410,7 @@ if __name__ == "__main__":
 
     with open(config_path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
-    
+
     if args.pdf_path:
         preprocess_single_pdf(
             pdf_path=args.pdf_path,
