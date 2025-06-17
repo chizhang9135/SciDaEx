@@ -461,28 +461,6 @@ def combine_results(all_results):
 
     return combined
 
-# TODO Port to Azure
-def extract_figures_tables_through_adobe(pdf_path=os.path.join(GV.data_dir, "Abiodun.pdf"),
-                                         client_id=None,
-                                         client_secret=None):
-    """Analyze a PDF with Azure Document Intelligence and return the result."""
-    client = DocumentIntelligenceClient(
-        endpoint=GV.docintel_endpoint,
-        credential=AzureKeyCredential(GV.docintel_key)
-    )
-
-    with open(pdf_path, "rb") as f:
-        pdf_bytes = f.read()
-
-    poller = client.begin_analyze_document(
-        model_id="prebuilt-layout",
-        analyze_request=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
-    )
-
-    result = poller.result()
-
-    return result
-
 
 #####################################################################################
 # Figure special functions
@@ -619,50 +597,6 @@ def merge_figures(figure_list):
     
     return merged_captions
 
-def extract_figure_caption_and_page_adobe(pdf_path):
-    """Extract figure captions and page numbers using Azure Document Intelligence."""
-
-    pattern = r"^(?i)\s*(F\s*I\s*G(\s*U\s*R\s*E)?)"
-
-    client = DocumentIntelligenceClient(
-        endpoint=GV.docintel_endpoint,
-        credential=AzureKeyCredential(GV.docintel_key)
-    )
-
-    with open(pdf_path, "rb") as f:
-        pdf_bytes = f.read()
-
-    poller = client.begin_analyze_document(
-        model_id="prebuilt-layout",
-        analyze_request=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
-    )
-
-    result = poller.result()
-
-    page_list = []
-    figure_list = []
-
-    for page in result.pages:
-        for line in page.lines:
-            if re.match(pattern, line.content):
-                if page.page_number not in page_list:
-                    page_list.append(page.page_number)
-                figure_info = line.content
-                try:
-                    figure_name = split_text_to_extract_number(figure_info)
-                except Exception:
-                    figure_name = figure_info
-
-                figure_info = figure_info[len(figure_name):].lstrip()
-                if figure_info and figure_info[0].isupper():
-                    figure_list.append({
-                        "figure_name": normalize_figure_name(figure_name),
-                        "figure_caption": figure_info,
-                        "figure_content": "none",
-                    })
-
-    return figure_list, page_list
-
 def extract_figures_azure(pdf_path):
     from azure.ai.documentintelligence import DocumentIntelligenceClient
     from azure.core.credentials import AzureKeyCredential
@@ -678,7 +612,7 @@ def extract_figures_azure(pdf_path):
 
     poller = client.begin_analyze_document(
         model_id="prebuilt-layout",
-        analyze_request=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
+        body=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
     )
     result = poller.result()
 
@@ -730,9 +664,9 @@ def extract_pdf_figure(pdf_path):
     Returns a list of dictionaries with figure metadata.
     """
     figures_data = []
-
     pdf_name = os.path.basename(pdf_path).replace(".pdf", "")
-    output_dir = os.path.join("app", "figures_temp", pdf_name)
+    pdf_dir = os.path.dirname(pdf_path)
+    output_dir = os.path.join(pdf_dir, "output", pdf_name)
     os.makedirs(output_dir, exist_ok=True)
 
     # Set up Azure client
@@ -746,7 +680,7 @@ def extract_pdf_figure(pdf_path):
 
     poller = client.begin_analyze_document(
         model_id="prebuilt-layout",
-        analyze_request=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
+        body=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
     )
     result = poller.result()
 
@@ -890,7 +824,7 @@ def extract_figures_azure_style(pdf_path, output_dir, azure_endpoint, azure_key)
 
     poller = document_intelligence_client.begin_analyze_document(
         model_id="prebuilt-layout",
-        analyze_request=AnalyzeDocumentRequest(bytes_source=pdf_bytes),
+        body=AnalyzeDocumentRequest(bytes_source=pdf_bytes),
         features=["figures"]
     )
     result = poller.result()
@@ -1153,7 +1087,7 @@ def extract_pdf_table_llm(pdf_path):
     return table_inf_list
 
 # TODO Port to Azure
-def extract_pdf_table_adobe(pdf_path):
+def extract_pdf_table_azure(pdf_path):
     """Extract tables from PDF using Azure Document Intelligence."""
 
     client = DocumentIntelligenceClient(
@@ -1166,7 +1100,7 @@ def extract_pdf_table_adobe(pdf_path):
 
     poller = client.begin_analyze_document(
         model_id="prebuilt-layout",
-        analyze_request=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
+        body=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
     )
 
     result = poller.result()
@@ -1209,7 +1143,7 @@ def process_tables(pdf_folder, table_folder, model):
         pdf_path = os.path.join(pdf_folder, pdf_file)
         try:
             if model == "none":
-                table_example = extract_pdf_table_adobe(pdf_path)
+                table_example = extract_pdf_table_azure(pdf_path)
             else:
                 table_example = extract_pdf_table_llm_new(pdf_path, model)
         except Exception as e:
@@ -1234,7 +1168,7 @@ def process_single_pdf_table(pdf_path, table_folder, model):
     pdf_name = os.path.basename(pdf_path).split(".")[0]
     try:
         if model == "none":
-            table_example = extract_pdf_table_adobe(pdf_path)
+            table_example = extract_pdf_table_azure(pdf_path)
         else:
             table_example = extract_pdf_table_llm_new(pdf_path, model)
     except Exception as e:
