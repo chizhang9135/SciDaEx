@@ -303,7 +303,7 @@ def preprocess_single_pdf(pdf_path, figure_dir, table_dir, meta_dir, table_model
         return
     
     if mode == "fast":
-        # if mode parameter is "fast", then set table_model to "none" to use the adobe function
+        # if mode parameter is "fast", then set table_model to "none" to use the Azure Document Intelligence API
         table_model = "none"
         figure_model = "none"
     

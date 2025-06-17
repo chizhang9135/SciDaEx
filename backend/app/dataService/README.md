@@ -25,12 +25,11 @@ This folder contains the core data processing and extraction functionalities for
     api_version: 2024-05-01-preview
     deployment_name: gpt-4o-deployment
 
-   adobe_credentials:
-     client_id: your_adobe_client_id_here
-     client_secret: your_adobe_client_secret_here
+   document_intelligence:
+     endpoint: https://your-docintelligence.cognitiveservices.azure.com/
+     key: your_document_intelligence_key
    ```
    - Replace the placeholder values in `config.yml` with your actual API keys and credentials.
-      - [Adobe credentials](https://acrobatservices.adobe.com/dc-integration-creation-app-cdn/main.html?api=pdf-services-api)
 
 ## Usage
 
