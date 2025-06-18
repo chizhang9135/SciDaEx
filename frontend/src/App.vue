@@ -971,7 +971,7 @@ export default {
     displayPDFTable(filename) {
       console.log("displayPDFTable", filename);
 
-      service.extract_table_from_pdf([{ "name": filename }], this.openai_key, tables => {
+      service.extract_table_from_pdf([{ "name": filename }], tables => {
         console.log("extract_table_from_pdf: ", tables[0], typeof tables[0], typeof tables);
         this.tableLists = tables[0];
         if (tables[0] && tables[0].length > 0 && !this.paperInfoList.includes("Table")) {
@@ -982,7 +982,7 @@ export default {
     displayPDFMeta(filename) {
       console.log("displayPDFMeta", filename);
 
-      service.extract_meta_from_pdf([{ "name": filename }], this.openai_key, meta => {
+      service.extract_meta_from_pdf([{ "name": filename }], meta => {
         // console.log("extract_meta_from_pdf: ", meta[0]);
         this.metaInfo = meta[0];
       });
@@ -990,7 +990,7 @@ export default {
     displayPDFFigure(filename) {
       console.log("displayPDFFigure", filename);
 
-      service.extract_figure_from_pdf([{ "name": filename }], this.openai_key, figures => {
+      service.extract_figure_from_pdf([{ "name": filename }], figures => {
         console.log("extract_figure_from_pdf: ", figures[0]);
         this.figLists = figures[0];
         if (figures[0] && figures[0].length > 0 && !this.paperInfoList.includes("Figure")) {
