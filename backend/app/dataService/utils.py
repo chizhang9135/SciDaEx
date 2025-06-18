@@ -34,6 +34,7 @@ Main Functions:
 - build_rag_chain: Construct a RAG chain for question answering
 
 """
+# <editor-fold desc="import">
 # Standard library imports
 import ast
 import base64
@@ -103,7 +104,10 @@ except ImportError:
         figure_describe_prompt_template,
         table_structure_prompt_templatev2
     )
-    
+
+# </editor-fold>
+
+# <editor-fold desc="general utils">
 def summarize_texts(texts: List[str], model_name: str = "gpt-3.5-turbo-1106",
                     max_workers: int = 5) -> list[dict[str, str]]:
     prompt_text = """You are an assistant tasked with summarizing tables and text. \
@@ -460,8 +464,9 @@ def combine_results(all_results):
         page_offset += max_page
 
     return combined
+# </editor-fold>
 
-
+# <editor-fold desc="figure processing">
 #####################################################################################
 # Figure special functions
 def normalize_figure_name(figure_name):
@@ -656,7 +661,6 @@ def extract_figures_azure(pdf_path):
         })
     doc.close()
     return fig_data
-
 
 def extract_pdf_figure(pdf_path):
     """
@@ -887,9 +891,7 @@ def process_single_pdf_figure(pdf_path, figure_output_dir, model, azure_openai_k
     out_path = os.path.join(figure_output_dir, os.path.basename(pdf_path).replace(".pdf", ".json"))
     with open(out_path, "w") as f:
         json.dump(figure_data, f, indent=2)
-
-
-
+# </editor-fold>
 
 # <editor-fold desc="table processing">
 #####################################################################################
