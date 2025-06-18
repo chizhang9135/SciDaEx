@@ -27,9 +27,6 @@ azure_openai_endpoint = azure_openai.get('api_base', None)
 azure_openai_version = azure_openai.get('api_version', None)
 azure_openai_deployment = azure_openai.get('deployment_name', None)
 azure_embedding_deployment = azure_openai.get('embedding_deployment_name', None)
-adobe_credentials = config.get('adobe_credentials', {})
-adobe_client_id = adobe_credentials.get('client_id', None)
-adobe_client_secret = adobe_credentials.get('client_secret', None)
 
 # Extract Document Intelligence credentials
 document_intelligence = config.get('document_intelligence', {})
@@ -37,7 +34,7 @@ docintel_endpoint = document_intelligence.get('endpoint', None)
 docintel_key = document_intelligence.get('key', None)
 
 
-# Require Azure OpenAI and Document Intelligence credentials (Adobe is optional)
+# Require Azure OpenAI and Document Intelligence credentials
 missing = []
 if not azure_openai_key:
     missing.append("azure_openai.api_key")

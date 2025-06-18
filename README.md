@@ -48,7 +48,7 @@ python -m venv venv
 source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 
 # Install backend dependencies (python 3.10)
-pip install -r requirements.txt && pip install "pdfservices-sdk==2.3.0"
+pip install -r requirements.txt
 
 # Install frontend dependencies
 cd frontend
@@ -58,9 +58,9 @@ npm install
 ### Configuration
 1. Backend configuration
    - Create a `config.yml` file in the `backend/app/dataService` directory
-   - Update the `config.yml` file with the required configurations:
-     - Get Adobe service API credentials [here](https://developer.adobe.com/document-services/docs/overview/pdf-services-api/)
+  - Update the `config.yml` file with the required configurations:
     - Provide Azure OpenAI credentials
+    - Provide Azure Document Intelligence credentials
     ```yaml
     azure_openai:
       api_key: your_azure_openai_key
@@ -69,9 +69,9 @@ npm install
       deployment_name: gpt-4o-deployment
       embedding_deployment_name: text-embedding-3-small-deployment  # Add this if using vector search
     
-    adobe_credentials:
-      client_id: your_adobe_client_id
-      client_secret: your_adobe_client_secret
+    document_intelligence:
+      endpoint: https://your-docintelligence.cognitiveservices.azure.com/
+      key: your_document_intelligence_key
 
     ```
 

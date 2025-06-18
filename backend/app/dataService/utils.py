@@ -11,7 +11,7 @@ Key functionalities include:
 1. PDF Content Extraction:
    - Extract figures, tables, and meta-information from PDF files
    - Process single PDFs or entire folders of PDFs
-   - Support for both LLM-based and Adobe API-based extraction methods
+   - Support for both LLM-based and Azure Document Intelligence API-based extraction methods
 
 2. Vector Store Management:
    - Build and save local document vector stores
@@ -66,15 +66,12 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from tqdm import tqdm
 
-# Adobe PDF Services SDK imports
-from adobe.pdfservices.operation.auth.credentials import Credentials
-from adobe.pdfservices.operation.execution_context import ExecutionContext
-from adobe.pdfservices.operation.io.file_ref import FileRef
-from adobe.pdfservices.operation.pdfops.extract_pdf_operation import ExtractPDFOperation
-from adobe.pdfservices.operation.pdfops.options.extractpdf.extract_pdf_options import ExtractPDFOptions
-from adobe.pdfservices.operation.pdfops.options.extractpdf.extract_element_type import ExtractElementType
-from adobe.pdfservices.operation.pdfops.options.extractpdf.extract_renditions_element_type import ExtractRenditionsElementType
-from adobe.pdfservices.operation.pdfops.options.extractpdf.table_structure_type import TableStructureType
+# Azure Document Intelligence imports
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
+
+import fitz
 
 # Langchain imports
 from langchain.pydantic_v1 import BaseModel, Field
@@ -464,46 +461,6 @@ def combine_results(all_results):
 
     return combined
 
-# TODO Port to Azure
-def extract_figures_tables_through_adobe(pdf_path=os.path.join(GV.data_dir, "Abiodun.pdf"), 
-                                         client_id=GV.adobe_client_id, 
-                                         client_secret=GV.adobe_client_secret):
-    # extract pdf figures
-    pdf_name = pdf_path.split('/')[-1].split('.')[0]
-    zip_file = os.path.join(GV.temp_dir, pdf_name + ".zip")
-    output_folder = os.path.join(GV.temp_dir, pdf_name)
-    
-    if os.path.exists(output_folder):
-        return "This pdf has been processed."
-    
-    #Initial setup, create credentials instance.
-    credentials = Credentials.service_principal_credentials_builder().with_client_id(client_id).with_client_secret(client_secret).build()
-
-    #Create an ExecutionContext using credentials and create a new operation instance.
-    execution_context = ExecutionContext.create(credentials)
-    extract_pdf_operation = ExtractPDFOperation.create_new()
-
-    #Set operation input from a source file.
-    source = FileRef.create_from_local_file(pdf_path)
-    extract_pdf_operation.set_input(source)
-
-    #Build ExtractPDF options and set them into the operation
-    # new version
-    extract_pdf_options: ExtractPDFOptions = ExtractPDFOptions.builder() \
-        .with_elements_to_extract([ExtractElementType.TEXT, ExtractElementType.TABLES]) \
-        .with_elements_to_extract_renditions([ExtractRenditionsElementType.TABLES,ExtractRenditionsElementType.FIGURES]) \
-        .build()
-    extract_pdf_operation.set_options(extract_pdf_options)
-    #Execute the operation.
-    result: FileRef = extract_pdf_operation.execute(execution_context)
-
-    #Save the result to the specified location.
-    result.save_as(zip_file)
-
-    # unzip and remove ZIP
-    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
-        zip_ref.extractall(output_folder)
-    os.remove(zip_file)
 
 #####################################################################################
 # Figure special functions
@@ -640,94 +597,153 @@ def merge_figures(figure_list):
     
     return merged_captions
 
-# TODO Port to Azure
-def extract_figure_caption_and_page_adobe(pdf_path):
-    # function: leverage adobe api to extract the figure captions (* used at this time)
-   
-    # count represents the figrue saving number
-    pdf_name = pdf_path.split('/')[-1].split('.')[0]
-    output_folder = os.path.join(GV.temp_dir, pdf_name)
-    # output_folder = "app/figures_temp/" + pdf_name
+def extract_figures_azure(pdf_path):
+    from azure.ai.documentintelligence import DocumentIntelligenceClient
+    from azure.core.credentials import AzureKeyCredential
+    import fitz
 
-    # read structuredData.json
-    structured_data_file = os.path.join(output_folder, "structuredData.json")
-    
-    pattern = r'^(?i)\s*(F\s*I\s*G(\s*U\s*R\s*E)?)'
+    client = DocumentIntelligenceClient(
+        endpoint=GV.docintel_endpoint,
+        credential=AzureKeyCredential(GV.docintel_key)
+    )
 
-    page_list = []
-    figure_list = []
-    with open(structured_data_file, 'r') as f:
-        structured_data = json.load(f)["elements"]
-        
-        for json_data in structured_data:
-            if 'Text' in json_data and re.match(pattern, json_data['Text']):
-                if json_data["Page"] not in page_list:
-                    page_list.append(json_data["Page"])
-                figure_info = json_data["Text"]
-                try:
-                    figure_name = split_text_to_extract_number(figure_info)
-                except:
-                    figure_name = figure_info
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
 
-                figure_info = figure_info[len(figure_name):]
-                first_letter_index = next((index for index, char in enumerate(figure_info) if char.isalpha()), None)
-                figure_info = figure_info[first_letter_index:]
-                
-                if figure_info and figure_info[0].isupper():
-                    figure_list.append({
-                        "figure_name": normalize_figure_name(figure_name),
-                        "figure_caption": figure_info,
-                        "figure_content": "none", 
-                    })
-    return figure_list, page_list
+    poller = client.begin_analyze_document(
+        model_id="prebuilt-layout",
+        body=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
+    )
+    result = poller.result()
+
+    fig_data = []
+    doc = fitz.open(pdf_path)
+    for i, fig in enumerate(result.figures or []):
+        if not fig.bounding_regions:
+            continue
+
+        region = fig.bounding_regions[0]
+        page_num = region.page_number
+        poly = region.polygon
+
+        x0, y0 = poly[0] * 72, poly[1] * 72
+        x1, y1 = poly[4] * 72, poly[5] * 72
+
+        rect = fitz.Rect(x0, y0, x1, y1)
+        page = doc.load_page(page_num - 1)
+        pix = page.get_pixmap(clip=rect)
+
+        img_path = os.path.join(GV.figure_dir, f"{os.path.basename(pdf_path)}_figure_{i + 1}.png")
+        pix.save(img_path)
+
+        caption = ""
+        if fig.caption and fig.caption.spans:
+            span = fig.caption.spans[0]
+            caption = result.content[span.offset:span.offset + span.length]
+
+        fig_data.append({
+            "figure_name": f"Figure {i + 1}",
+            "figure_caption": caption,
+            "figure_url": img_path,
+            "figure_content": "",
+            "figure_mentioned": [
+                {
+                    "page_number": page_num,
+                    "sentence_number": 0,
+                    "sentence_content": caption or ""
+                }
+            ]
+        })
+    doc.close()
+    return fig_data
+
 
 def extract_pdf_figure(pdf_path):
-    # 1. need to set the output dir at first
-    output_dir = os.path.join(GV.data_dir, "output")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    pdf_name = pdf_path.split('/')[-1].split('.')[0]
-    
-    # 2. use adobe api to extract all the figures
-    extract_figures_tables_through_adobe(pdf_path)
+    """
+    Extracts figure information and crops images using Azure Document Intelligence (prebuilt-layout).
+    Returns a list of dictionaries with figure metadata.
+    """
+    figures_data = []
+    pdf_name = os.path.basename(pdf_path).replace(".pdf", "")
+    pdf_dir = os.path.dirname(pdf_path)
+    output_dir = os.path.join(pdf_dir, "output", pdf_name)
+    os.makedirs(output_dir, exist_ok=True)
 
-    # 3. use adobe to extract the pages with figures and the figure caption
-    figure_info_list, page_included_figure = extract_figure_caption_and_page_adobe(pdf_path)
+    # Set up Azure client
+    client = DocumentIntelligenceClient(
+        endpoint=GV.docintel_endpoint,
+        credential=AzureKeyCredential(GV.docintel_key)
+    )
 
-    # 4. search the corresponding images
-    save_number = 1
-    for p in page_included_figure:
-        figure_extracted = extract_pdf_figures_page(pdf_path, p)
-        # start to save the figure
-        for f in figure_extracted:
-            save_path = os.path.join(output_dir, pdf_name + '_' + str(save_number) + '.png')
-            if isinstance(f[0], list):
-                # need to combine several figures
-                figure_path_list_temp = []
-                for ff in f:
-                    figure_path_list_temp.append(os.path.join(GV.temp_dir, pdf_name + '/' + ff[0]))
-                    # figure_path_list_temp.append('app/figures_temp/' + pdf_name + '/' + ff[0])  
-                combine_figures(figure_path_list_temp, save_path)
-            else:
-                # this is the final figure
-                shutil.copy2(os.path.join(GV.temp_dir, pdf_name + '/' + f[0]), save_path)
-                # shutil.copy2('figures_temp/' + pdf_name + '/' + f[0], save_path)
-            if (save_number < len(figure_info_list) + 1):
-                figure_info_list[save_number - 1]['figure_url'] = save_path
-            save_number += 1
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
 
-    # 4. extract the mentioned sentences
-    figure_name_list = []
-    for figure_inf in figure_info_list:
-        figure_name_list.append(figure_inf['figure_name'])
-        # figure_name_list: ["Figure 1", "Figure 2", ...]
-    figure_sentences = extract_sentences_with_keywords(pdf_path, figure_name_list, 1)
+    poller = client.begin_analyze_document(
+        model_id="prebuilt-layout",
+        body=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
+    )
+    result = poller.result()
 
-    # - add the sentences into the tables
-    for figure_info in figure_info_list:
-        figure_info['figure_mentioned'] = figure_sentences[figure_info['figure_name']]
+    if not result.figures:
+        return []
 
-    return figure_info_list
+    pdf_doc = fitz.open(pdf_path)
+
+    for i, fig in enumerate(result.figures):
+        if not fig.bounding_regions:
+            continue
+
+        region = fig.bounding_regions[0]
+        page_number = region.page_number
+        polygon = region.polygon
+
+        if not polygon or len(polygon) < 6:
+            continue
+
+        try:
+            # Convert from inches to points (1 inch = 72 points)
+            x0 = polygon[0] * 72
+            y0 = polygon[1] * 72
+            x1 = polygon[4] * 72
+            y1 = polygon[5] * 72
+
+            # Ensure coordinates are in proper order
+            x0, x1 = sorted([x0, x1])
+            y0, y1 = sorted([y0, y1])
+
+            # Skip very small boxes
+            if abs(x1 - x0) < 10 or abs(y1 - y0) < 10:
+                continue
+
+            bbox = fitz.Rect(x0, y0, x1, y1)
+            page = pdf_doc.load_page(page_number - 1)
+            pix = page.get_pixmap(clip=bbox, dpi=200)
+
+            image_path = os.path.join(output_dir, f"figure_{i+1}.png")
+            pix.save(image_path)
+
+            caption = ""
+            if fig.caption and fig.caption.spans:
+                span = fig.caption.spans[0]
+                caption = result.content[span.offset: span.offset + span.length].strip()
+
+            figures_data.append({
+                "figure_name": f"Figure {i+1}",
+                "figure_caption": caption,
+                "figure_url": image_path,
+                "figure_content": "",
+                "figure_mentioned": [{
+                    "page_number": page_number,
+                    "sentence_number": 0,
+                    "sentence_content": caption or "No caption detected."
+                }]
+            })
+        except Exception as e:
+            print(f"Skipping figure {i+1} on page {page_number} due to error: {e}")
+            continue
+
+    pdf_doc.close()
+    return figures_data
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -794,37 +810,88 @@ def process_figures(pdf_fold, figure_fold, model, openai_api_key):
             
 #####################################################################################
 # Single PDF figure special functions
-def process_single_pdf_figure(pdf_path, figure_fold, model, openai_api_key):
-    """
-    Process figures from a single PDF file and save the results as a JSON file.
 
-    Args:
-        pdf_path (str): Path to the PDF file.
-        figure_fold (str): Path to the folder where the figure JSON file will be saved.
-        model (str): Name of the LLM model to use for figure description, such as "gpt-4o", "gpt-4-turbo"
-        openai_api_key (str): Azure OpenAI API key for LLM access.
-    """
-    print("Processing single PDF for figure extraction")
-    if os.path.basename(pdf_path)[-3:] != 'pdf':
-        raise Exception("Invalid PDF file")
-        return
-    pdf_name = os.path.basename(pdf_path).split(".")[0]
-    try:
-        figure_example = extract_pdf_figure(pdf_path)
-    except Exception as e:
-        print(f"Error processing PDF file {pdf_path}: {str(e)}")
-        figure_example = []
-    for i in range(0, len(figure_example)):
-        if "figure_url" not in figure_example[i] or "figure_caption" not in figure_example[i]:
+def extract_figures_azure_style(pdf_path, output_dir, azure_endpoint, azure_key):
+    os.makedirs(output_dir, exist_ok=True)
+
+    document_intelligence_client = DocumentIntelligenceClient(
+        endpoint=azure_endpoint,
+        credential=AzureKeyCredential(azure_key)
+    )
+
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
+
+    poller = document_intelligence_client.begin_analyze_document(
+        model_id="prebuilt-layout",
+        body=AnalyzeDocumentRequest(bytes_source=pdf_bytes),
+        features=["figures"]
+    )
+    result = poller.result()
+
+    pdf_doc = fitz.open(pdf_path)
+    figures_output = []
+
+    for i, figure in enumerate(result.figures or []):
+        if not figure.bounding_regions:
             continue
-        caption = figure_example[i]["figure_caption"]
-        if model == "none":
-            response = ""
-        else:
-            response = describe_figure(figure_example[i]["figure_url"], caption, model, openai_api_key)
-        figure_example[i]["figure_content"] = response
-    with open(os.path.join(figure_fold, pdf_name + ".json"), "w") as f:
-        json.dump(figure_example, f)
+
+        page_num = figure.bounding_regions[0].page_number
+        polygon = figure.bounding_regions[0].polygon
+
+        x0 = polygon[0] * 72
+        y0 = polygon[1] * 72
+        x1 = polygon[4] * 72
+        y1 = polygon[5] * 72
+
+        rect = fitz.Rect(x0, y0, x1, y1)
+        page = pdf_doc.load_page(page_num - 1)
+        pix = page.get_pixmap(clip=rect)
+        image_path = os.path.join(output_dir, f"figure_{i + 1}.png")
+        pix.save(image_path)
+
+        # Caption extraction
+        caption_text = ""
+        if figure.caption and figure.caption.spans:
+            span = figure.caption.spans[0]
+            caption_text = result.content[span.offset : span.offset + span.length]
+
+        figure_json = {
+            "figure_name": f"Figure {i + 1}",
+            "figure_caption": caption_text,
+            "figure_url": image_path,
+            "figure_content": "",  # for later GPT fill
+            "figure_mentioned": [
+                {
+                    "page_number": page_num,
+                    "sentence_number": 0,
+                    "sentence_content": caption_text or ""
+                }
+            ]
+        }
+
+        figures_output.append(figure_json)
+
+    pdf_doc.close()
+    return figures_output
+
+def process_single_pdf_figure(pdf_path, figure_output_dir, model, azure_openai_key):
+
+    figure_data = extract_figures_azure_style(
+        pdf_path=pdf_path,
+        output_dir=figure_output_dir,
+        azure_endpoint=GV.docintel_endpoint,
+        azure_key=GV.docintel_key
+    )
+
+    out_path = os.path.join(figure_output_dir, os.path.basename(pdf_path).replace(".pdf", ".json"))
+    with open(out_path, "w") as f:
+        json.dump(figure_data, f, indent=2)
+
+
+
+
+# <editor-fold desc="table processing">
 #####################################################################################
 # Table special functions
 def parse_table_content(table_content):
@@ -1020,72 +1087,44 @@ def extract_pdf_table_llm(pdf_path):
     return table_inf_list
 
 # TODO Port to Azure
-def extract_pdf_table_adobe(pdf_path):
-    # exract tables from pdf through Adobe
-    output_dir = os.path.join(GV.data_dir, "output")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    pdf_name = pdf_path.split('/')[-1].split('.')[0]
-    
-    # 2. use adobe api to extract all the figures and tables
-    extract_figures_tables_through_adobe(pdf_path)
+def extract_pdf_table_azure(pdf_path):
+    """Extract tables from PDF using Azure Document Intelligence."""
 
-    # 3. read the figures_temp/.../structuredData.json
-    structured_data_file = os.path.join(GV.temp_dir, pdf_name, "structuredData.json")
+    client = DocumentIntelligenceClient(
+        endpoint=GV.docintel_endpoint,
+        credential=AzureKeyCredential(GV.docintel_key)
+    )
 
-    # 4. identify the table: fileoutpart[d].xlsx and identify the table caption
-    with open(structured_data_file, 'r') as f:
-        structured_data = json.load(f)["elements"]
-        pattern = r"^\s*t\s*a\s*b\s*l\s*e\s*\d+\b"
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
 
-        filtered_data_pair = [(index, element) for index, element in enumerate(structured_data) if "filePaths" in element and element["filePaths"][0].startswith("tables/fileoutpart")]
-        index_table = [item[0] for item in filtered_data_pair]
-        
-        filtered_data_pair2 = [(index, element) for index, element in enumerate(structured_data) if "Text" in element and re.match(pattern, element["Text"], re.IGNORECASE)]
-        index_caption = [item[0] for item in filtered_data_pair2]
+    poller = client.begin_analyze_document(
+        model_id="prebuilt-layout",
+        body=AnalyzeDocumentRequest(bytes_source=pdf_bytes)
+    )
 
-    # 5. check whether there is a table caption after each element
-    if len(index_table) != len(index_caption):
-        index_table, index_caption = match_lists(index_table, index_caption)
+    result = poller.result()
 
-    # 6. retrieve the content
     table_info_list = []
     table_name_list = []
-    for i in range(len(index_table)):
-        xlsx_path = structured_data[index_table[i]]["filePaths"][0]
-        csv_table = pd.read_excel(os.path.join(GV.temp_dir, pdf_name, xlsx_path))
-        table_info = structured_data[index_caption[i]]["Text"]
-        table_name = normalize_table_name(split_text_to_extract_number(table_info))
-        table_info = table_info[len(table_name):]
-        table_letter_index = next((index for index, char in enumerate(table_info) if char.isalpha()), None)
+
+    for idx, table in enumerate(result.tables):
+        rows = [["" for _ in range(table.column_count)] for _ in range(table.row_count)]
+        for cell in table.cells:
+            rows[cell.row_index][cell.column_index] = cell.content
+        df = pd.DataFrame(rows)
+
+        table_name = f"Table {idx + 1}"
         table_sentences = extract_sentences_with_keywords(pdf_path, [table_name])
-        if table_name not in table_name_list:
-            table_name_list.append(table_name)
-            table_info_list.append({
-                'table_name': table_name,
-                'table_caption': table_info[table_letter_index:],
-                'table_content': csv_table,
-                'table_mentioned': table_sentences[table_name]
-            })
-        else:
-            # combine the two table
-            same_table = table_info_list[table_name_list.index(table_name)]
-            for index, row in csv_table.iterrows():
-                try:
-                    if index != 0:
-                        same_table['table_content'].loc[len(same_table['table_content'])] = row.values
-                except:
-                    continue
-            # same_table['table_content'].to_excel('output.xlsx', index=False)
-    # 7. transit to html/csv
-    for i in range(len(table_info_list)):
-        # table_info_list[i]['table_content'] = table_info_list[i]['table_content'].to_html()
-        df = table_info_list[i]['table_content']
-        # Removing '_x000D_' from column names
-        df.columns = df.columns.str.replace('_x000D_', '')
-        # Removing '_x000D_' from rows
-        df = df.replace('_x000D_', '', regex=True)
-        table_info_list[i]['table_content'] = df.to_json(orient="records")
+
+        table_info_list.append({
+            "table_name": table_name,
+            "table_caption": "",
+            "table_content": df.to_json(orient="records"),
+            "table_mentioned": table_sentences.get(table_name, [])
+        })
+        table_name_list.append(table_name)
+
     return table_info_list
 
 def process_tables(pdf_folder, table_folder, model):
@@ -1104,7 +1143,7 @@ def process_tables(pdf_folder, table_folder, model):
         pdf_path = os.path.join(pdf_folder, pdf_file)
         try:
             if model == "none":
-                table_example = extract_pdf_table_adobe(pdf_path)
+                table_example = extract_pdf_table_azure(pdf_path)
             else:
                 table_example = extract_pdf_table_llm_new(pdf_path, model)
         except Exception as e:
@@ -1129,7 +1168,7 @@ def process_single_pdf_table(pdf_path, table_folder, model):
     pdf_name = os.path.basename(pdf_path).split(".")[0]
     try:
         if model == "none":
-            table_example = extract_pdf_table_adobe(pdf_path)
+            table_example = extract_pdf_table_azure(pdf_path)
         else:
             table_example = extract_pdf_table_llm_new(pdf_path, model)
     except Exception as e:
@@ -1137,7 +1176,9 @@ def process_single_pdf_table(pdf_path, table_folder, model):
         table_example = []
     with open(os.path.join(table_folder, pdf_name + ".json"), "w") as f:
         json.dump(table_example, f)
+# </editor-fold>
 
+# <editor-fold desc="metadata processing">
 #####################################################################################
 # meta-information special functions
 def extract_pdf_meta_information(pdf_path):
@@ -1220,3 +1261,5 @@ def process_single_pdf_meta_information(pdf_path, meta_folder):
     meta_example = extract_pdf_meta_information(pdf_path)
     with open(os.path.join(meta_folder, pdf_name + ".json"), "w") as f:
         json.dump(meta_example, f)
+
+# </editor-fold>
