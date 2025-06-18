@@ -134,7 +134,8 @@ def extract_figure_from_pdf():
             # update figure_url to serve through the API
             for fig in figs:
                 if "figure_url" in fig:
-                    figure_name = fig["figure_url"].split("/")[-1]
+                    # handle absolute paths from any OS
+                    figure_name = os.path.basename(fig["figure_url"])
                     fig["figure_url"] = url_for(
                         "api.serve_image",
                         filename=figure_name,
