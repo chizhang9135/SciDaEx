@@ -33,10 +33,6 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 # Local application imports
 from app.dataService.llm_eval import llm_evaluate_deepeval
-from app.dataService.utils import (
-    extract_pdf_figure,
-    extract_pdf_meta_information,
-)
 import app.dataService.summarize as summ
 import base64
 
@@ -121,16 +117,32 @@ def extract_table_from_pdf():
 def extract_figure_from_pdf():
     data = request.get_json()
     filenames = data["filenames"]
-    filepaths = [os.path.join(current_app.dataService.GV.data_dir,  filename["name"]) for filename in filenames]
-    extract_figures = [extract_pdf_figure(filepath) for filepath in filepaths]
 
-    for figs in extract_figures:
-        for curr_fig in figs:
-            figure_name = curr_fig["figure_url"].split("/")[-1]
-            fig_url = url_for('api.serve_image', filename=figure_name, _external=True)
-            curr_fig["figure_url"] = fig_url
-    # print("extract_figures: ", extract_figures)
-    return jsonify(extract_figures)
+    # load preprocessed figure info
+    filepaths = [
+        os.path.join(
+            current_app.dataService.GV.figure_dir,
+            filename["name"].split(".")[0] + ".json",
+        )
+        for filename in filenames
+    ]
+
+    figure_infos = []
+    for fpath in filepaths:
+        with open(fpath, "r") as f:
+            figs = json.load(f)
+            # update figure_url to serve through the API
+            for fig in figs:
+                if "figure_url" in fig:
+                    figure_name = fig["figure_url"].split("/")[-1]
+                    fig["figure_url"] = url_for(
+                        "api.serve_image",
+                        filename=figure_name,
+                        _external=True,
+                    )
+            figure_infos.append(figs)
+
+    return jsonify(figure_infos)
 
 @api.route('/qa', methods=["POST"])
 def qa():
